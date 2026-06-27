@@ -33,4 +33,27 @@ public class BranchRepository : IBranchRepository
 
         return branch;
     }
+
+    public async Task<Branch> UpdateAsync(Branch branch)
+    {
+        _db.Branches.Update(branch);
+
+        await _db.SaveChangesAsync();
+
+        return branch;
+    }
+
+    public async Task<bool> DeleteAsync(int id)
+    {
+        var entity = await _db.Branches.FindAsync(id);
+
+        if (entity == null)
+            return false;
+
+        _db.Branches.Remove(entity);
+
+        await _db.SaveChangesAsync();
+
+        return true;
+    }
 }

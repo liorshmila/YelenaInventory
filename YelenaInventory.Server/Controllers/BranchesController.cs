@@ -42,4 +42,28 @@ public class BranchesController : ControllerBase
             new { id = created.Id },
             created);
     }
+
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<BranchDto>> Update(
+        int id,
+        BranchDto dto)
+    {
+        var updated = await _service.UpdateAsync(id, dto);
+
+        if (updated == null)
+            return NotFound();
+
+        return Ok(updated);
+    }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var deleted = await _service.DeleteAsync(id);
+
+        if (!deleted)
+            return NotFound();
+
+        return NoContent();
+    }
 }

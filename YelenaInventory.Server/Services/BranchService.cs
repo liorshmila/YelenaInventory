@@ -53,4 +53,27 @@ public class BranchService : IBranchService
             Name = entity.Name
         };
     }
+
+    public async Task<BranchDto?> UpdateAsync(int id, BranchDto dto)
+    {
+        var entity = await _repository.GetByIdAsync(id);
+
+        if (entity == null)
+            return null;
+
+        entity.Name = dto.Name;
+
+        entity = await _repository.UpdateAsync(entity);
+
+        return new BranchDto
+        {
+            Id = entity.Id,
+            Name = entity.Name
+        };
+    }
+
+    public Task<bool> DeleteAsync(int id)
+    {
+        return _repository.DeleteAsync(id);
+    }
 }

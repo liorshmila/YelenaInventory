@@ -9,4 +9,8 @@ public interface IBranchRepository
     Task<Branch?> GetByIdAsync(int id);
 
     Task<Branch> AddAsync(Branch branch);
+
+    Task<Branch> UpdateAsync(Branch branch);
+
+    Task<bool> DeleteAsync(int id);
 }
