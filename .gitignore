@@ -1,0 +1,36 @@
+# -------------------------
+# Flutter
+# -------------------------
+.dart_tool/
+.packages
+.pub/
+build/
+
+# Flutter generated
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# -------------------------
+# .NET
+# -------------------------
+**/bin/
+**/obj/
+
+# Visual Studio
+.vs/
+
+# VS Code
+.vscode/
+
+# Rider
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+**/.dart_tool/
+**/build/

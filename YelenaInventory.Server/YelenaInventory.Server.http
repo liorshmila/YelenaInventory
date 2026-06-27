@@ -1,0 +1,6 @@
+@YelenaInventory.Server_HostAddress = http://localhost:5002
+
+GET {{YelenaInventory.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
