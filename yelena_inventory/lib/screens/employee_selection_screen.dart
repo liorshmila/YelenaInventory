@@ -3,6 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/app_database.dart';
 import '../providers/employees_provider.dart';
+import '../widgets/app_buttons.dart';
+import '../widgets/app_frame.dart';
+import '../widgets/app_list_card.dart';
+import '../widgets/app_state_views.dart';
+import '../widgets/section_title.dart';
 import 'scan_screen.dart';
 
 class EmployeeSelectionScreen extends ConsumerStatefulWidget {
@@ -21,67 +26,76 @@ class _EmployeeSelectionScreenState
   Widget build(BuildContext context) {
     final employeesAsync = ref.watch(employeesProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('בחירת עובד')),
-      body: employeesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-
-        error: (error, stack) => Center(child: Text(error.toString())),
-
+    return AppFrame(
+      child: employeesAsync.when(
+        loading: () => const LoadingView(message: 'טוען עובדים...'),
+        error: (error, stack) => ErrorView(
+          message: 'לא הצלחנו לטעון את רשימת העובדים.',
+          onRetry: () {
+            ref.invalidate(employeesProvider);
+          },
+        ),
         data: (employees) {
-          return Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                const Text(
-                  'בחר עובד',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
+          if (employees.isEmpty) {
+            return const EmptyState(
+              icon: Icons.people_outline,
+              message: 'לא נמצאו עובדים',
+            );
+          }
 
-                const SizedBox(height: 20),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionTitle(
+                title: 'בחר עובד',
+                subtitle: 'בחר מי מבצע את ספירת המלאי.',
+                icon: Icons.badge_outlined,
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: RadioGroup<Employee>(
+                  groupValue: selectedEmployee,
+                  onChanged: (value) {
+                    setState(() {
+                      selectedEmployee = value;
+                    });
+                  },
+                  child: ListView.builder(
+                    itemCount: employees.length,
+                    itemBuilder: (context, index) {
+                      final employee = employees[index];
 
-                Expanded(
-                  child: RadioGroup<Employee>(
-                    groupValue: selectedEmployee,
-                    onChanged: (value) {
-                      setState(() {
-                        selectedEmployee = value;
-                      });
-                    },
-                    child: ListView.builder(
-                      itemCount: employees.length,
-                      itemBuilder: (context, index) {
-                        final employee = employees[index];
-
-                        return RadioListTile<Employee>(
+                      return AppListCard(
+                        child: RadioListTile<Employee>(
                           value: employee,
-                          title: Text(employee.name),
+                          title: Text(
+                            employee.name,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          secondary: const Icon(Icons.person_outline),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              PrimaryButton(
+                label: 'המשך',
+                icon: Icons.arrow_forward,
+                onPressed: selectedEmployee == null
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ScanScreen(employee: selectedEmployee!),
+                          ),
                         );
                       },
-                    ),
-                  ),
-                ),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton(
-                    onPressed: selectedEmployee == null
-                        ? null
-                        : () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ScanScreen(employee: selectedEmployee!),
-                              ),
-                            );
-                          },
-                    child: const Text('המשך'),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           );
         },
       ),

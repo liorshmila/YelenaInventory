@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'screens/branch_selection_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
-  runApp(
-    const ProviderScope(
-      child: YelenaInventoryApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: YelenaInventoryApp()));
 }
 
 class YelenaInventoryApp extends StatelessWidget {
@@ -19,10 +16,7 @@ class YelenaInventoryApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Yelena Inventory',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
-      ),
+      theme: AppTheme.light(),
       home: const BranchSelectionScreen(),
     );
   }
