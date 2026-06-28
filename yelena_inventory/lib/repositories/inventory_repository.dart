@@ -1,11 +1,17 @@
 import 'package:drift/drift.dart';
 
+import '../data/datasource/local/inventory_local_data_source.dart';
+import '../data/datasource/remote/inventory_remote_data_source.dart';
 import '../database/app_database.dart';
 
 class InventoryRepository {
-  final AppDatabase db;
+  final InventoryLocalDataSource localDataSource;
+  final InventoryRemoteDataSource remoteDataSource;
 
-  InventoryRepository(this.db);
+  InventoryRepository({
+    required this.localDataSource,
+    required this.remoteDataSource,
+  });
 
   // ==========================================
   // Initialization
@@ -17,36 +23,25 @@ class InventoryRepository {
   }
 
   Future<void> _createDefaultBranch() async {
-    final branches = await db.getBranches();
+    final branches = await localDataSource.getBranches();
 
     if (branches.isEmpty) {
-      await db.insertBranch(
-        BranchesCompanion.insert(
-          name: 'ראשי',
-        ),
+      await localDataSource.insertBranch(
+        BranchesCompanion.insert(name: 'ראשי'),
       );
     }
   }
 
   Future<void> _createDefaultEmployees() async {
-    final employees = await db.getEmployees();
+    final employees = await localDataSource.getEmployees();
 
     if (employees.isNotEmpty) return;
 
-    const names = [
-      'ילנה',
-      'שרית',
-      'נופר',
-      'אתי',
-      'משה',
-    ];
+    const names = ['ילנה', 'שרית', 'נופר', 'אתי', 'משה'];
 
     for (final name in names) {
-      await db.insertEmployee(
-        EmployeesCompanion.insert(
-          name: name,
-          branchId: 1,
-        ),
+      await localDataSource.insertEmployee(
+        EmployeesCompanion.insert(name: name, branchId: 1),
       );
     }
   }
@@ -56,7 +51,7 @@ class InventoryRepository {
   // ==========================================
 
   Future<List<Employee>> getEmployees() {
-    return db.getEmployees();
+    return localDataSource.getEmployees();
   }
 
   // ==========================================
@@ -64,7 +59,7 @@ class InventoryRepository {
   // ==========================================
 
   Future<List<Branche>> getBranches() {
-    return db.getBranches();
+    return localDataSource.getBranches();
   }
 
   // ==========================================
@@ -72,44 +67,33 @@ class InventoryRepository {
   // ==========================================
 
   Future<List<InventoryCount>> getInventory() {
-    return db.getInventory();
+    return localDataSource.getInventory();
   }
 
   Future<void> saveInventory({
-  required String barcode,
-  required int quantity,
-  required int employeeId,
-  String note = '',
+    required String barcode,
+    required int quantity,
+    required int employeeId,
+    String note = '',
   }) async {
-  await db.insertInventory(
+    await localDataSource.insertInventory(
       InventoryCountsCompanion.insert(
-      barcode: barcode,
-      quantity: quantity,
-      employeeId: employeeId,
-      branchId: Value(1),
-      countDate: DateTime.now(),
-      note: Value(note),
+        barcode: barcode,
+        quantity: quantity,
+        employeeId: employeeId,
+        branchId: Value(1),
+        countDate: DateTime.now(),
+        note: Value(note),
       ),
-  );
+    );
   }
 
   Future<void> deleteInventory(int id) async {
-    await (db.delete(db.inventoryCounts)
-          ..where((tbl) => tbl.id.equals(id)))
-        .go();
+    await localDataSource.deleteInventory(id);
   }
 
-  Future<void> updateQuantity({
-    required int id,
-    required int quantity,
-  }) async {
-    await (db.update(db.inventoryCounts)
-          ..where((tbl) => tbl.id.equals(id)))
-        .write(
-      InventoryCountsCompanion(
-        quantity: Value(quantity),
-      ),
-    );
+  Future<void> updateQuantity({required int id, required int quantity}) async {
+    await localDataSource.updateQuantity(id: id, quantity: quantity);
   }
 
   Future<int> totalProducts() async {

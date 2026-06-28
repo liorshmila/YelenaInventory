@@ -1,20 +1,32 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/branch_model.dart';
-import '../repositories/branch_repository.dart';
-import '../services/api_service.dart';
+import 'repository_provider.dart';
 
-final apiServiceProvider = Provider<ApiService>((ref) {
-  return ApiService();
+final branchesProvider = FutureProvider<List<BranchModel>>((ref) async {
+  final repo = ref.watch(inventoryRepositoryProvider);
+
+  await repo.initialize();
+
+  final branches = await repo.getBranches();
+
+  return branches
+      .map((branch) => BranchModel(id: branch.id, name: branch.name))
+      .toList();
 });
 
-final branchRepositoryProvider = Provider<BranchRepository>((ref) {
-  return BranchRepository(
-    ref.read(apiServiceProvider),
-  );
-});
+final selectedBranchProvider =
+    NotifierProvider<SelectedBranchNotifier, BranchModel?>(
+      SelectedBranchNotifier.new,
+    );
 
-final branchesProvider =
-    FutureProvider<List<BranchModel>>((ref) async {
-  return ref.read(branchRepositoryProvider).getBranches();
-});
+class SelectedBranchNotifier extends Notifier<BranchModel?> {
+  @override
+  BranchModel? build() {
+    return null;
+  }
+
+  void selectBranch(BranchModel branch) {
+    state = branch;
+  }
+}

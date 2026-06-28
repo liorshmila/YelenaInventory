@@ -7,10 +7,7 @@ import '../providers/repository_provider.dart';
 class ScanScreen extends ConsumerStatefulWidget {
   final Employee employee;
 
-  const ScanScreen({
-    super.key,
-    required this.employee,
-  });
+  const ScanScreen({super.key, required this.employee});
 
   @override
   ConsumerState<ScanScreen> createState() => _ScanScreenState();
@@ -46,17 +43,13 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   Future<void> saveProduct() async {
     final barcode = barcodeController.text.trim();
 
-    final quantity = int.tryParse(
-      quantityController.text.trim(),
-    );
+    final quantity = int.tryParse(quantityController.text.trim());
 
     if (barcode.isEmpty || quantity == null) {
       return;
     }
 
-    final repo = ref.read(
-      inventoryRepositoryProvider,
-    );
+    final repo = ref.read(inventoryRepositoryProvider);
 
     await repo.saveInventory(
       barcode: barcode,
@@ -71,11 +64,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("נשמר בהצלחה"),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("נשמר בהצלחה")));
   }
 
   @override
@@ -88,27 +79,18 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("סריקת מוצרים"),
-      ),
+      appBar: AppBar(title: const Text("סריקת מוצרים")),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             Text(
               widget.employee.name,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 25),
@@ -147,10 +129,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
             Text(
               "נספרו ${inventory.length} מוצרים",
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 15),
@@ -164,47 +143,26 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                     child: ListTile(
                       title: Text(item.barcode),
                       subtitle: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            "כמות: ${item.quantity}",
-                          ),
-                          Text(
-                            "עובד #${item.employeeId}",
-                          ),
-                          Text(
-                            item.countDate
-                                .toString()
-                                .substring(0, 16),
-                          ),
+                          Text("כמות: ${item.quantity}"),
+                          Text("עובד #${item.employeeId}"),
+                          Text(item.countDate.toString().substring(0, 16)),
                         ],
                       ),
                       trailing: IconButton(
-                        icon: const Icon(
-                          Icons.delete,
-                          color: Colors.red,
-                        ),
+                        icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () async {
-                          final repo = ref.read(
-                            inventoryRepositoryProvider,
-                          );
+                          final repo = ref.read(inventoryRepositoryProvider);
 
-                          await repo.deleteInventory(
-                            item.id,
-                          );
+                          await repo.deleteInventory(item.id);
 
                           await loadInventory();
 
-                          if (!mounted) return;
+                          if (!context.mounted) return;
 
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "הרשומה נמחקה",
-                              ),
-                            ),
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("הרשומה נמחקה")),
                           );
                         },
                       ),

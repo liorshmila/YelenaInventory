@@ -1,15 +1,41 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/datasource/local/inventory_local_data_source.dart';
+import '../data/datasource/remote/inventory_remote_data_source.dart';
 import '../database/app_database.dart';
 import '../repositories/inventory_repository.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
-  return AppDatabase();
+  final db = AppDatabase();
+
+  ref.onDispose(() {
+    db.close();
+  });
+
+  return db;
 });
 
-final inventoryRepositoryProvider =
-    Provider<InventoryRepository>((ref) {
+final inventoryLocalDataSourceProvider = Provider<InventoryLocalDataSource>((
+  ref,
+) {
   final db = ref.watch(appDatabaseProvider);
 
-  return InventoryRepository(db);
+  return DriftInventoryLocalDataSource(db);
+});
+
+final inventoryRemoteDataSourceProvider = Provider<InventoryRemoteDataSource>((
+  ref,
+) {
+  return RestInventoryRemoteDataSource();
+});
+
+final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
+  final localDataSource = ref.watch(inventoryLocalDataSourceProvider);
+
+  final remoteDataSource = ref.watch(inventoryRemoteDataSourceProvider);
+
+  return InventoryRepository(
+    localDataSource: localDataSource,
+    remoteDataSource: remoteDataSource,
+  );
 });

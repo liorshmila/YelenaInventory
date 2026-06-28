@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'screens/employee_selection_screen.dart';
+import 'screens/branch_selection_screen.dart';
 
 void main() {
   runApp(
@@ -23,7 +23,7 @@ class YelenaInventoryApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: Colors.blue,
       ),
-      home: const EmployeeSelectionScreen(),
+      home: const BranchSelectionScreen(),
     );
   }
 }

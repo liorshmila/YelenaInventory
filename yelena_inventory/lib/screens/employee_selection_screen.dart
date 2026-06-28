@@ -22,16 +22,11 @@ class _EmployeeSelectionScreenState
     final employeesAsync = ref.watch(employeesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('בחירת עובד'),
-      ),
+      appBar: AppBar(title: const Text('בחירת עובד')),
       body: employeesAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CircularProgressIndicator()),
 
-        error: (error, stack) => Center(
-          child: Text(error.toString()),
-        ),
+        error: (error, stack) => Center(child: Text(error.toString())),
 
         data: (employees) {
           return Padding(
@@ -40,31 +35,30 @@ class _EmployeeSelectionScreenState
               children: [
                 const Text(
                   'בחר עובד',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 20),
 
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: employees.length,
-                    itemBuilder: (context, index) {
-                      final employee = employees[index];
-
-                      return RadioListTile<Employee>(
-                        value: employee,
-                        groupValue: selectedEmployee,
-                        title: Text(employee.name),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedEmployee = value;
-                          });
-                        },
-                      );
+                  child: RadioGroup<Employee>(
+                    groupValue: selectedEmployee,
+                    onChanged: (value) {
+                      setState(() {
+                        selectedEmployee = value;
+                      });
                     },
+                    child: ListView.builder(
+                      itemCount: employees.length,
+                      itemBuilder: (context, index) {
+                        final employee = employees[index];
+
+                        return RadioListTile<Employee>(
+                          value: employee,
+                          title: Text(employee.name),
+                        );
+                      },
+                    ),
                   ),
                 ),
 
@@ -78,9 +72,8 @@ class _EmployeeSelectionScreenState
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => ScanScreen(
-                                  employee: selectedEmployee!,
-                                ),
+                                builder: (_) =>
+                                    ScanScreen(employee: selectedEmployee!),
                               ),
                             );
                           },
