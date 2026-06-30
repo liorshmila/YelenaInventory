@@ -91,3 +91,39 @@ class EmptyState extends StatelessWidget {
     );
   }
 }
+
+class EmptyStateWithAction extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  final String actionLabel;
+  final VoidCallback onPressed;
+
+  const EmptyStateWithAction({
+    super.key,
+    required this.icon,
+    required this.message,
+    required this.actionLabel,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          EmptyState(icon: icon, message: message),
+          const SizedBox(height: 24),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 280),
+            child: PrimaryButton(
+              label: actionLabel,
+              icon: Icons.add,
+              onPressed: onPressed,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

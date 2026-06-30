@@ -8,6 +8,7 @@ import '../widgets/app_list_card.dart';
 import '../widgets/app_state_views.dart';
 import '../widgets/section_title.dart';
 import 'employee_selection_screen.dart';
+import 'settings_screen.dart';
 
 class BranchSelectionScreen extends ConsumerWidget {
   const BranchSelectionScreen({super.key});
@@ -36,10 +37,29 @@ class BranchSelectionScreen extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionTitle(
-                title: 'בחר סניף',
-                subtitle: 'בחר את הסניף שבו מתבצעת ספירת המלאי.',
-                icon: Icons.storefront,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Expanded(
+                    child: SectionTitle(
+                      title: 'בחר סניף',
+                      subtitle: 'בחר את הסניף שבו מתבצעת ספירת המלאי.',
+                      icon: Icons.storefront,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Settings',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.settings_outlined),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               Expanded(

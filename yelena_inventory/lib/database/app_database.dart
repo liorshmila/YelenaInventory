@@ -20,8 +20,29 @@ class AppDatabase extends _$AppDatabase {
     return select(employees).get();
   }
 
+  Future<List<Employee>> getEmployeesForBranch(int branchId) {
+    return (select(employees)
+          ..where((tbl) => tbl.branchId.equals(branchId))
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.name)]))
+        .get();
+  }
+
   Future<void> insertEmployee(EmployeesCompanion employee) {
     return into(employees).insert(employee);
+  }
+
+  Future<void> updateEmployee({
+    required int id,
+    required String name,
+    required int branchId,
+  }) {
+    return (update(employees)..where((tbl) => tbl.id.equals(id))).write(
+      EmployeesCompanion(name: Value(name), branchId: Value(branchId)),
+    );
+  }
+
+  Future<void> deleteEmployee(int id) {
+    return (delete(employees)..where((tbl) => tbl.id.equals(id))).go();
   }
 
   // ---------- Branches ----------
@@ -32,6 +53,16 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> insertBranch(BranchesCompanion branch) {
     return into(branches).insert(branch);
+  }
+
+  Future<void> updateBranchName({required int id, required String name}) {
+    return (update(branches)..where((tbl) => tbl.id.equals(id))).write(
+      BranchesCompanion(name: Value(name)),
+    );
+  }
+
+  Future<void> deleteBranch(int id) {
+    return (delete(branches)..where((tbl) => tbl.id.equals(id))).go();
   }
 
   // ---------- Inventory ----------

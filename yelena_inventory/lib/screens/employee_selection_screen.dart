@@ -39,7 +39,8 @@ class _EmployeeSelectionScreenState
           if (employees.isEmpty) {
             return const EmptyState(
               icon: Icons.people_outline,
-              message: 'לא נמצאו עובדים',
+              message:
+                  'No employees in this branch.\nAdd employees from Settings.',
             );
           }
 

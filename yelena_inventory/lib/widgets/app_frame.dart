@@ -18,6 +18,7 @@ class AppFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final topLogoWidth = _topLogoWidth(screenWidth);
+    final canPop = Navigator.canPop(context);
 
     final content = SafeArea(
       child: Center(
@@ -51,7 +52,7 @@ class AppFrame extends StatelessWidget {
 
     return Scaffold(
       appBar: title == null ? null : AppBar(title: Text(title!)),
-      body: content,
+      body: Stack(children: [content, if (canPop) const _FloatingBackButton()]),
     );
   }
 
@@ -65,6 +66,38 @@ class AppFrame extends StatelessWidget {
     }
 
     return 480;
+  }
+}
+
+class _FloatingBackButton extends StatelessWidget {
+  const _FloatingBackButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final textDirection = Directionality.of(context);
+    final alignment = textDirection == TextDirection.rtl
+        ? Alignment.topRight
+        : Alignment.topLeft;
+
+    return SafeArea(
+      child: Align(
+        alignment: alignment,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: BackButton(
+              style: IconButton.styleFrom(
+                iconSize: 30,
+                minimumSize: const Size(48, 48),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -110,18 +143,43 @@ class _PoweredBy extends StatelessWidget {
         const SizedBox(width: 160, child: Divider(height: 1)),
         const SizedBox(height: 10),
         Text(
-          'Powered by',
+          'Developed for',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppTheme.textMuted,
-            fontSize: 12,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         SizedBox(
           width: logoWidth,
           child: Image.asset(
             'assets/logos/paamit_logo.png',
             fit: BoxFit.contain,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Yelena Inventory',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Version 1.0.0',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppTheme.textMuted,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '© 2026 Yelena Portnoy',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppTheme.textMuted.withValues(alpha: 0.78),
+            fontSize: 12,
           ),
         ),
       ],
