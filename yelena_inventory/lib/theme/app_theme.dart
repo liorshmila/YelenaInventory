@@ -27,22 +27,28 @@ class AppTheme {
       scaffoldBackgroundColor: background,
       textTheme: const TextTheme(
         headlineMedium: TextStyle(
-          fontSize: 26,
+          fontSize: 20,
           fontWeight: FontWeight.w700,
           color: Color(0xFF111827),
         ),
         titleLarge: TextStyle(
-          fontSize: 22,
+          fontSize: 17.5,
           fontWeight: FontWeight.w700,
           color: Color(0xFF111827),
         ),
         titleMedium: TextStyle(
-          fontSize: 18,
+          fontSize: 14,
           fontWeight: FontWeight.w600,
           color: Color(0xFF111827),
         ),
-        bodyLarge: TextStyle(fontSize: 16, color: Color(0xFF1F2937)),
-        bodyMedium: TextStyle(fontSize: 15, color: Color(0xFF374151)),
+        bodyLarge: TextStyle(fontSize: 12.5, color: Color(0xFF1F2937)),
+        bodyMedium: TextStyle(fontSize: 12, color: Color(0xFF374151)),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbVisibility: WidgetStateProperty.all(true),
+        thickness: WidgetStateProperty.all(5),
+        radius: const Radius.circular(999),
+        thumbColor: WidgetStateProperty.all(primary.withValues(alpha: 0.45)),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: background,
@@ -64,8 +70,8 @@ class AppTheme {
         filled: true,
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 18,
+          horizontal: 14,
+          vertical: 11,
         ),
         border: OutlineInputBorder(
           borderRadius: borderRadius,
@@ -86,25 +92,31 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size.fromHeight(46),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size.fromHeight(46),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
           side: const BorderSide(color: primary),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       listTileTheme: const ListTileThemeData(
-        contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 2),
         iconColor: primary,
       ),
       snackBarTheme: SnackBarThemeData(

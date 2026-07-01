@@ -1,0 +1,228 @@
+import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+
+import '../services/barcode_beep_service.dart';
+
+class BarcodeScannerScreen extends StatefulWidget {
+  const BarcodeScannerScreen({super.key});
+
+  @override
+  State<BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
+}
+
+class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
+  late final MobileScannerController controller;
+  bool barcodeReturned = false;
+  String? lastBarcodeValue;
+  int stableDetections = 0;
+
+  static const stableDetectionThreshold = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = MobileScannerController(
+      facing: CameraFacing.back,
+      detectionSpeed: DetectionSpeed.normal,
+      detectionTimeoutMs: 120,
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: const Text('Scan barcode'),
+      ),
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: controller,
+            fit: BoxFit.cover,
+            onDetect: _handleBarcodeCapture,
+            errorBuilder: _buildError,
+            placeholderBuilder: (context) {
+              return const Center(child: CircularProgressIndicator());
+            },
+          ),
+          const _ScannerOverlay(),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleBarcodeCapture(BarcodeCapture capture) async {
+    if (barcodeReturned) {
+      return;
+    }
+
+    for (final barcode in capture.barcodes) {
+      final value = barcode.rawValue;
+
+      if (value == null || value.trim().isEmpty) {
+        continue;
+      }
+
+      final normalizedValue = value.trim();
+      final canAcceptImmediately = _hasValidRetailCheckDigit(
+        normalizedValue,
+        barcode.format,
+      );
+      final invalidRetailCandidate =
+          _isRetailLength(normalizedValue) &&
+          barcode.format != BarcodeFormat.upcE &&
+          !canAcceptImmediately;
+
+      if (invalidRetailCandidate) {
+        continue;
+      }
+
+      if (normalizedValue == lastBarcodeValue) {
+        stableDetections += 1;
+      } else {
+        lastBarcodeValue = normalizedValue;
+        stableDetections = 1;
+      }
+
+      if (!canAcceptImmediately &&
+          stableDetections < stableDetectionThreshold) {
+        return;
+      }
+
+      barcodeReturned = true;
+      await BarcodeBeepService.playSuccessBeep();
+      await controller.stop();
+      if (!mounted) {
+        return;
+      }
+      Navigator.pop(context, lastBarcodeValue);
+      return;
+    }
+  }
+
+  bool _hasValidRetailCheckDigit(String value, BarcodeFormat format) {
+    if (_isValidWeightedCheckDigit(value, 13) ||
+        _isValidWeightedCheckDigit(value, 8) ||
+        _isValidWeightedCheckDigit(value, 12)) {
+      return true;
+    }
+
+    return switch (format) {
+      BarcodeFormat.ean13 => _isValidWeightedCheckDigit(value, 13),
+      BarcodeFormat.ean8 => _isValidWeightedCheckDigit(value, 8),
+      BarcodeFormat.upcA => _isValidWeightedCheckDigit(value, 12),
+      _ => false,
+    };
+  }
+
+  bool _isRetailLength(String value) {
+    return RegExp(r'^\d+$').hasMatch(value) &&
+        (value.length == 8 || value.length == 12 || value.length == 13);
+  }
+
+  bool _isValidWeightedCheckDigit(String value, int expectedLength) {
+    if (value.length != expectedLength || !RegExp(r'^\d+$').hasMatch(value)) {
+      return false;
+    }
+
+    final digits = value.split('').map(int.parse).toList();
+    final checkDigit = digits.last;
+    var sum = 0;
+
+    for (var index = 0; index < digits.length - 1; index += 1) {
+      final positionFromRight = digits.length - index;
+      final weight = positionFromRight.isEven ? 3 : 1;
+      sum += digits[index] * weight;
+    }
+
+    final calculatedCheckDigit = (10 - (sum % 10)) % 10;
+
+    return calculatedCheckDigit == checkDigit;
+  }
+
+  Widget _buildError(BuildContext context, MobileScannerException error) {
+    final message = switch (error.errorCode) {
+      MobileScannerErrorCode.permissionDenied =>
+        'Camera permission is required to scan barcodes.',
+      MobileScannerErrorCode.unsupported =>
+        'Camera scanning is not available on this device.',
+      _ => 'Camera scanning is not available on this device.',
+    };
+
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.all(24),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.no_photography_outlined,
+            color: Colors.white,
+            size: 56,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: Colors.white),
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScannerOverlay extends StatelessWidget {
+  const _ScannerOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const Spacer(),
+              Container(
+                height: 180,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white, width: 3),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Point the camera at a barcode',
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(color: Colors.white),
+              ),
+              const Spacer(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

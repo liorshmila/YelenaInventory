@@ -28,7 +28,7 @@ class PrimaryButton extends StatelessWidget {
 
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: 46,
       child: FilledButton(onPressed: onPressed, child: child),
     );
   }
@@ -62,7 +62,7 @@ class SecondaryButton extends StatelessWidget {
 
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: 46,
       child: OutlinedButton(onPressed: onPressed, child: child),
     );
   }

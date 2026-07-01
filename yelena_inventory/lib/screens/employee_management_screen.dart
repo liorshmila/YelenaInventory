@@ -10,6 +10,7 @@ import '../providers/repository_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_frame.dart';
 import '../widgets/app_list_card.dart';
+import '../widgets/app_scrollbar.dart';
 import '../widgets/app_state_views.dart';
 import '../widgets/section_title.dart';
 
@@ -61,7 +62,7 @@ class _EmployeeManagementScreenState
                     subtitle: 'Create and maintain employees by branch.',
                     icon: Icons.people_outline,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 14),
                   DropdownButtonFormField<int>(
                     initialValue: activeBranch.id,
                     decoration: const InputDecoration(
@@ -86,7 +87,7 @@ class _EmployeeManagementScreenState
                       });
                     },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 14),
                   Expanded(
                     child: employeesAsync.when(
                       loading: () =>
@@ -101,43 +102,39 @@ class _EmployeeManagementScreenState
                       ),
                       data: (employees) {
                         if (employees.isEmpty) {
-                          return EmptyStateWithAction(
+                          return const EmptyState(
                             icon: Icons.people_outline,
                             message: 'No employees in this branch.',
-                            actionLabel: 'Create Employee',
-                            onPressed: () {
-                              _showEmployeeDialog(
-                                context: context,
-                                ref: ref,
-                                branches: branches,
-                                initialBranch: activeBranch,
-                              );
-                            },
                           );
                         }
 
-                        return ListView.builder(
-                          padding: const EdgeInsets.only(bottom: 96),
-                          itemCount: employees.length,
-                          itemBuilder: (context, index) {
-                            final employee = employees[index];
+                        return AppScrollbar(
+                          builder: (controller) {
+                            return ListView.builder(
+                              controller: controller,
+                              padding: const EdgeInsets.only(bottom: 86),
+                              itemCount: employees.length,
+                              itemBuilder: (context, index) {
+                                final employee = employees[index];
 
-                            return _EmployeeManagementTile(
-                              employee: employee,
-                              onEdit: () {
-                                _showEmployeeDialog(
-                                  context: context,
-                                  ref: ref,
-                                  branches: branches,
-                                  initialBranch: activeBranch,
+                                return _EmployeeManagementTile(
                                   employee: employee,
-                                );
-                              },
-                              onDelete: () {
-                                _confirmDeleteEmployee(
-                                  context: context,
-                                  ref: ref,
-                                  employee: employee,
+                                  onEdit: () {
+                                    _showEmployeeDialog(
+                                      context: context,
+                                      ref: ref,
+                                      branches: branches,
+                                      initialBranch: activeBranch,
+                                      employee: employee,
+                                    );
+                                  },
+                                  onDelete: () {
+                                    _confirmDeleteEmployee(
+                                      context: context,
+                                      ref: ref,
+                                      employee: employee,
+                                    );
+                                  },
                                 );
                               },
                             );
@@ -150,7 +147,7 @@ class _EmployeeManagementScreenState
               ),
               Align(
                 alignment: Alignment.bottomRight,
-                child: FloatingActionButton.extended(
+                child: FloatingActionButton(
                   onPressed: () {
                     _showEmployeeDialog(
                       context: context,
@@ -159,8 +156,7 @@ class _EmployeeManagementScreenState
                       initialBranch: activeBranch,
                     );
                   },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Create Employee'),
+                  child: const Icon(Icons.add),
                 ),
               ),
             ],
@@ -200,7 +196,7 @@ class _EmployeeManagementScreenState
     final isEditing = employee != null;
     var dialogBranchId = employee?.branchId ?? initialBranch.id;
 
-    await showDialog<void>(
+    final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
@@ -308,8 +304,8 @@ class _EmployeeManagementScreenState
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: () {
-                    _saveEmployee(
+                  onPressed: () async {
+                    await _saveEmployee(
                       context: context,
                       dialogContext: dialogContext,
                       ref: ref,
@@ -330,9 +326,26 @@ class _EmployeeManagementScreenState
       },
     );
 
+    await WidgetsBinding.instance.endOfFrame;
     firstNameController.dispose();
     lastNameController.dispose();
     phoneController.dispose();
+
+    if (saved == true && context.mounted) {
+      ref.invalidate(employeesProvider);
+      ref.invalidate(employeesForBranchProvider(dialogBranchId));
+      if (employee != null && employee.branchId != dialogBranchId) {
+        ref.invalidate(employeesForBranchProvider(employee.branchId));
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            employee == null ? 'Employee created.' : 'Employee updated.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _saveEmployee({
@@ -391,24 +404,11 @@ class _EmployeeManagementScreenState
       );
     }
 
-    ref.invalidate(employeesProvider);
-    ref.invalidate(employeesForBranchProvider(branchId));
-    if (employee != null && employee.branchId != branchId) {
-      ref.invalidate(employeesForBranchProvider(employee.branchId));
-    }
-
     if (!context.mounted || !dialogContext.mounted) {
       return;
     }
 
-    Navigator.pop(dialogContext);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          employee == null ? 'Employee created.' : 'Employee updated.',
-        ),
-      ),
-    );
+    Navigator.pop(dialogContext, true);
   }
 
   Future<void> _confirmDeleteEmployee({
@@ -448,7 +448,13 @@ class _EmployeeManagementScreenState
     try {
       await ref.read(inventoryRepositoryProvider).deleteEmployee(employee.id);
       ref.invalidate(employeesProvider);
-      ref.invalidate(employeesForBranchProvider(employee.branchId));
+      final refreshedEmployees = await ref.refresh(
+        employeesForBranchProvider(employee.branchId).future,
+      );
+
+      if (refreshedEmployees.any((item) => item.id == employee.id)) {
+        throw StateError('Employee still exists after deletion.');
+      }
 
       if (!context.mounted) {
         return;

@@ -6,6 +6,7 @@ import '../providers/employees_provider.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/app_frame.dart';
 import '../widgets/app_list_card.dart';
+import '../widgets/app_scrollbar.dart';
 import '../widgets/app_state_views.dart';
 import '../widgets/section_title.dart';
 import 'scan_screen.dart';
@@ -52,7 +53,7 @@ class _EmployeeSelectionScreenState
                 subtitle: 'בחר מי מבצע את ספירת המלאי.',
                 icon: Icons.badge_outlined,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
               Expanded(
                 child: RadioGroup<Employee>(
                   groupValue: selectedEmployee,
@@ -61,20 +62,25 @@ class _EmployeeSelectionScreenState
                       selectedEmployee = value;
                     });
                   },
-                  child: ListView.builder(
-                    itemCount: employees.length,
-                    itemBuilder: (context, index) {
-                      final employee = employees[index];
+                  child: AppScrollbar(
+                    builder: (controller) {
+                      return ListView.builder(
+                        controller: controller,
+                        itemCount: employees.length,
+                        itemBuilder: (context, index) {
+                          final employee = employees[index];
 
-                      return AppListCard(
-                        child: RadioListTile<Employee>(
-                          value: employee,
-                          title: Text(
-                            employee.name,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          secondary: const Icon(Icons.person_outline),
-                        ),
+                          return AppListCard(
+                            child: RadioListTile<Employee>(
+                              value: employee,
+                              title: Text(
+                                employee.name,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              secondary: const Icon(Icons.person_outline),
+                            ),
+                          );
+                        },
                       );
                     },
                   ),

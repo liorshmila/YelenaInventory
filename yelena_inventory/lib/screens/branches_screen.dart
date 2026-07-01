@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/branch_provider.dart';
 import '../widgets/app_frame.dart';
 import '../widgets/app_list_card.dart';
+import '../widgets/app_scrollbar.dart';
 import '../widgets/app_state_views.dart';
 import '../widgets/section_title.dart';
 
@@ -39,30 +40,34 @@ class BranchesScreen extends ConsumerWidget {
                 subtitle: 'רשימת הסניפים הזמינים במערכת.',
                 icon: Icons.business,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
               Expanded(
-                child: RefreshIndicator(
-                  onRefresh: () async {
-                    ref.invalidate(branchesProvider);
-                    await ref.read(branchesProvider.future);
-                  },
-                  child: ListView.builder(
-                    itemCount: branches.length,
-                    itemBuilder: (context, index) {
-                      final branch = branches[index];
+                child: AppScrollbar(
+                  builder: (controller) {
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        ref.invalidate(branchesProvider);
+                        await ref.read(branchesProvider.future);
+                      },
+                      child: ListView.builder(
+                        controller: controller,
+                        itemCount: branches.length,
+                        itemBuilder: (context, index) {
+                          final branch = branches[index];
 
-                      return AppListCard(
-                        child: ListTile(
-                          leading: const Icon(Icons.business),
-                          title: Text(
-                            branch.name,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          subtitle: Text('Id: ${branch.id}'),
-                        ),
-                      );
-                    },
-                  ),
+                          return AppListCard(
+                            child: ListTile(
+                              leading: const Icon(Icons.business),
+                              title: Text(
+                                branch.name,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
                 ),
               ),
             ],

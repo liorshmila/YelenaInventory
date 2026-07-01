@@ -7,7 +7,9 @@ abstract interface class InventoryLocalDataSource {
 
   Future<List<Employee>> getEmployeesForBranch(int branchId);
 
-  Future<void> insertEmployee(EmployeesCompanion employee);
+  Future<Employee?> getEmployeeById(int id);
+
+  Future<int> insertEmployee(EmployeesCompanion employee);
 
   Future<void> updateEmployee({
     required int id,
@@ -15,11 +17,13 @@ abstract interface class InventoryLocalDataSource {
     required int branchId,
   });
 
-  Future<void> deleteEmployee(int id);
+  Future<int> deleteEmployee(int id);
 
   Future<List<Branche>> getBranches();
 
-  Future<void> insertBranch(BranchesCompanion branch);
+  Future<Branche?> getBranchById(int id);
+
+  Future<int> insertBranch(BranchesCompanion branch);
 
   Future<void> updateBranchName({required int id, required String name});
 
@@ -27,7 +31,7 @@ abstract interface class InventoryLocalDataSource {
 
   Future<List<InventoryCount>> getInventory();
 
-  Future<void> insertInventory(InventoryCountsCompanion row);
+  Future<int> insertInventory(InventoryCountsCompanion row);
 
   Future<void> deleteInventory(int id);
 
@@ -50,7 +54,12 @@ class DriftInventoryLocalDataSource implements InventoryLocalDataSource {
   }
 
   @override
-  Future<void> insertEmployee(EmployeesCompanion employee) {
+  Future<Employee?> getEmployeeById(int id) {
+    return _db.getEmployeeById(id);
+  }
+
+  @override
+  Future<int> insertEmployee(EmployeesCompanion employee) {
     return _db.insertEmployee(employee);
   }
 
@@ -64,7 +73,7 @@ class DriftInventoryLocalDataSource implements InventoryLocalDataSource {
   }
 
   @override
-  Future<void> deleteEmployee(int id) {
+  Future<int> deleteEmployee(int id) {
     return _db.deleteEmployee(id);
   }
 
@@ -74,7 +83,12 @@ class DriftInventoryLocalDataSource implements InventoryLocalDataSource {
   }
 
   @override
-  Future<void> insertBranch(BranchesCompanion branch) {
+  Future<Branche?> getBranchById(int id) {
+    return _db.getBranchById(id);
+  }
+
+  @override
+  Future<int> insertBranch(BranchesCompanion branch) {
     return _db.insertBranch(branch);
   }
 
@@ -94,7 +108,7 @@ class DriftInventoryLocalDataSource implements InventoryLocalDataSource {
   }
 
   @override
-  Future<void> insertInventory(InventoryCountsCompanion row) {
+  Future<int> insertInventory(InventoryCountsCompanion row) {
     return _db.insertInventory(row);
   }
 

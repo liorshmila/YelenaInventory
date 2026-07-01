@@ -6,43 +6,39 @@ class AppFrame extends StatelessWidget {
   final String? title;
   final Widget child;
   final bool scrollable;
+  final List<Widget> actions;
+  final Widget? leading;
+  final double? leadingWidth;
 
   const AppFrame({
     super.key,
     this.title,
     required this.child,
     this.scrollable = true,
+    this.actions = const [],
+    this.leading,
+    this.leadingWidth,
   });
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final topLogoWidth = _topLogoWidth(screenWidth);
-    final canPop = Navigator.canPop(context);
+    final route = ModalRoute.of(context);
+    final canPop = Navigator.canPop(context) && !(route?.isFirst ?? true);
 
     final content = SafeArea(
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 960),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Column(
               children: [
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: SizedBox(
-                    width: topLogoWidth,
-                    child: Image.asset(
-                      'assets/logos/YelenaInventoryLogo.png',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 28),
+                _HeaderLogo(visible: !keyboardVisible, width: topLogoWidth),
                 Expanded(child: AppCard(child: child)),
-                const SizedBox(height: 20),
-                const _PoweredBy(),
+                _Footer(visible: !keyboardVisible),
               ],
             ),
           ),
@@ -51,21 +47,78 @@ class AppFrame extends StatelessWidget {
     );
 
     return Scaffold(
-      appBar: title == null ? null : AppBar(title: Text(title!)),
+      appBar: title == null && actions.isEmpty && leading == null
+          ? null
+          : AppBar(
+              title: title == null ? null : Text(title!),
+              leading: leading,
+              leadingWidth: leadingWidth,
+              actions: actions,
+            ),
       body: Stack(children: [content, if (canPop) const _FloatingBackButton()]),
     );
   }
 
   double _topLogoWidth(double width) {
     if (width < 600) {
-      return width * 0.64;
+      return width * 0.58;
     }
 
     if (width < 1000) {
-      return width * 0.48;
+      return width * 0.43;
     }
 
-    return 480;
+    return 420;
+  }
+}
+
+class _HeaderLogo extends StatelessWidget {
+  final bool visible;
+  final double width;
+
+  const _HeaderLogo({required this.visible, required this.width});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!visible) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: SizedBox(
+            width: width,
+            child: Image.asset(
+              'assets/logos/YelenaInventoryLogo.png',
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+class _Footer extends StatelessWidget {
+  final bool visible;
+
+  const _Footer({required this.visible});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!visible) {
+      return const SizedBox.shrink();
+    }
+
+    return const Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [SizedBox(height: 8), _PoweredBy()],
+    );
   }
 }
 
@@ -123,7 +176,7 @@ class AppCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
-        child: Padding(padding: const EdgeInsets.all(24), child: child),
+        child: Padding(padding: const EdgeInsets.all(14), child: child),
       ),
     );
   }
@@ -141,16 +194,16 @@ class _PoweredBy extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(width: 160, child: Divider(height: 1)),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
         Text(
           'Developed for',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppTheme.textMuted,
-            fontSize: 14,
+            fontSize: 11,
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 2),
         SizedBox(
           width: logoWidth,
           child: Image.asset(
@@ -158,28 +211,28 @@ class _PoweredBy extends StatelessWidget {
             fit: BoxFit.contain,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
         Text(
           'Yelena Inventory',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontSize: 15,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           'Version 1.0.0',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppTheme.textMuted,
-            fontSize: 13,
+            fontSize: 10.5,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           '© 2026 Yelena Portnoy',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppTheme.textMuted.withValues(alpha: 0.78),
-            fontSize: 12,
+            fontSize: 10,
           ),
         ),
       ],
@@ -188,13 +241,13 @@ class _PoweredBy extends StatelessWidget {
 
   double _bottomLogoWidth(double width) {
     if (width < 600) {
-      return width * 0.585;
+      return width * 0.52;
     }
 
     if (width < 1000) {
-      return width * 0.455;
+      return width * 0.40;
     }
 
-    return 338;
+    return 285;
   }
 }

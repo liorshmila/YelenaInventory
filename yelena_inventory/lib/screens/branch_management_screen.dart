@@ -7,6 +7,7 @@ import '../providers/repository_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_frame.dart';
 import '../widgets/app_list_card.dart';
+import '../widgets/app_scrollbar.dart';
 import '../widgets/app_state_views.dart';
 import '../widgets/section_title.dart';
 
@@ -37,7 +38,7 @@ class BranchManagementScreen extends ConsumerWidget {
                     subtitle: 'Add, edit, or remove store branches.',
                     icon: Icons.business_outlined,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 18),
                   Expanded(
                     child: branches.isEmpty
                         ? EmptyStateWithAction(
@@ -48,27 +49,32 @@ class BranchManagementScreen extends ConsumerWidget {
                               _showBranchDialog(context: context, ref: ref);
                             },
                           )
-                        : ListView.builder(
-                            padding: const EdgeInsets.only(bottom: 88),
-                            itemCount: branches.length,
-                            itemBuilder: (context, index) {
-                              final branch = branches[index];
+                        : AppScrollbar(
+                            builder: (controller) {
+                              return ListView.builder(
+                                controller: controller,
+                                padding: const EdgeInsets.only(bottom: 112),
+                                itemCount: branches.length,
+                                itemBuilder: (context, index) {
+                                  final branch = branches[index];
 
-                              return _BranchManagementTile(
-                                branch: branch,
-                                onEdit: () {
-                                  _showBranchDialog(
-                                    context: context,
-                                    ref: ref,
+                                  return _BranchManagementTile(
                                     branch: branch,
-                                  );
-                                },
-                                onDelete: () {
-                                  _confirmDeleteBranch(
-                                    context: context,
-                                    ref: ref,
-                                    branch: branch,
-                                    branchesCount: branches.length,
+                                    onEdit: () {
+                                      _showBranchDialog(
+                                        context: context,
+                                        ref: ref,
+                                        branch: branch,
+                                      );
+                                    },
+                                    onDelete: () {
+                                      _confirmDeleteBranch(
+                                        context: context,
+                                        ref: ref,
+                                        branch: branch,
+                                        branchesCount: branches.length,
+                                      );
+                                    },
                                   );
                                 },
                               );
@@ -102,7 +108,7 @@ class BranchManagementScreen extends ConsumerWidget {
     final formKey = GlobalKey<FormState>();
     final isEditing = branch != null;
 
-    await showDialog<void>(
+    final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
@@ -124,8 +130,8 @@ class BranchManagementScreen extends ConsumerWidget {
 
                 return null;
               },
-              onFieldSubmitted: (_) {
-                _saveBranch(
+              onFieldSubmitted: (_) async {
+                await _saveBranch(
                   context: context,
                   dialogContext: dialogContext,
                   ref: ref,
@@ -144,8 +150,8 @@ class BranchManagementScreen extends ConsumerWidget {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () {
-                _saveBranch(
+              onPressed: () async {
+                await _saveBranch(
                   context: context,
                   dialogContext: dialogContext,
                   ref: ref,
@@ -161,7 +167,17 @@ class BranchManagementScreen extends ConsumerWidget {
       },
     );
 
+    await WidgetsBinding.instance.endOfFrame;
     controller.dispose();
+
+    if (saved == true && context.mounted) {
+      ref.invalidate(branchesProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isEditing ? 'Branch updated.' : 'Branch created.'),
+        ),
+      );
+    }
   }
 
   Future<void> _saveBranch({
@@ -202,19 +218,11 @@ class BranchManagementScreen extends ConsumerWidget {
       await repository.updateBranch(id: branch.id, name: name);
     }
 
-    ref.invalidate(branchesProvider);
-
     if (!context.mounted || !dialogContext.mounted) {
       return;
     }
 
-    Navigator.pop(dialogContext);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(branch == null ? 'Branch created.' : 'Branch updated.'),
-      ),
-    );
+    Navigator.pop(dialogContext, true);
   }
 
   Future<void> _confirmDeleteBranch({
@@ -261,11 +269,18 @@ class BranchManagementScreen extends ConsumerWidget {
 
     try {
       await ref.read(inventoryRepositoryProvider).deleteBranch(branch.id);
-      ref.invalidate(branchesProvider);
 
       if (!context.mounted) {
         return;
       }
+
+      await WidgetsBinding.instance.endOfFrame;
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ref.invalidate(branchesProvider);
 
       ScaffoldMessenger.of(
         context,
