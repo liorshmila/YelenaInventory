@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../localization/app_language.dart';
 import '../widgets/app_frame.dart';
@@ -113,6 +114,20 @@ class SettingsScreen extends ConsumerWidget {
                   trailing: const Icon(Icons.chevron_right),
                 ),
               ),
+              AppListCard(
+                onTap: () {
+                  _showAboutDialog(context: context, ref: ref);
+                },
+                child: ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: Text(
+                    strings.about,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  subtitle: Text(strings.aboutSubtitle),
+                  trailing: const Icon(Icons.chevron_right),
+                ),
+              ),
             ],
           );
         },
@@ -158,6 +173,83 @@ class SettingsScreen extends ConsumerWidget {
                 Navigator.pop(dialogContext);
               },
               child: Text(strings.cancel),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showAboutDialog({
+    required BuildContext context,
+    required WidgetRef ref,
+  }) async {
+    final strings = ref.read(appStringsProvider);
+    final packageInfo = await PackageInfo.fromPlatform();
+
+    if (!context.mounted) {
+      return;
+    }
+
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final textTheme = Theme.of(dialogContext).textTheme;
+
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: Image.asset(
+                    'assets/logos/YelenaInventoryLogo.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                strings.appTitle,
+                textAlign: TextAlign.center,
+                style: textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                strings.inventoryManagementSystem,
+                textAlign: TextAlign.center,
+                style: textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '${strings.version}: ${packageInfo.version}',
+                textAlign: TextAlign.center,
+                style: textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${strings.build}: ${packageInfo.buildNumber}',
+                textAlign: TextAlign.center,
+                style: textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '© 2026',
+                textAlign: TextAlign.center,
+                style: textTheme.bodySmall,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: Text(strings.close),
             ),
           ],
         );

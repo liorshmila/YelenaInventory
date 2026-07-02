@@ -70,6 +70,13 @@ class AppStrings {
   String get branches => isHebrew ? 'סניפים' : 'Branches';
   String get employees => isHebrew ? 'עובדים' : 'Employees';
   String get auditLog => isHebrew ? 'יומן פעילות' : 'Audit Log';
+  String get about => isHebrew ? 'אודות' : 'About';
+  String get aboutSubtitle =>
+      isHebrew ? 'מידע על האפליקציה' : 'Application information';
+  String get inventoryManagementSystem =>
+      isHebrew ? 'מערכת ניהול מלאי' : 'Inventory Management System';
+  String get version => isHebrew ? 'גרסה' : 'Version';
+  String get build => isHebrew ? 'בנייה' : 'Build';
   String get language => isHebrew ? 'שפה' : 'Language';
   String get languageSubtitle =>
       isHebrew ? 'בחירת שפת הממשק' : 'Choose the application language';
