@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../localization/app_language.dart';
 import '../providers/branch_provider.dart';
 import '../widgets/app_frame.dart';
 import '../widgets/app_list_card.dart';
@@ -14,30 +15,32 @@ class BranchesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final branchesAsync = ref.watch(branchesProvider);
+    final strings = ref.watch(appStringsProvider);
 
     return AppFrame(
       child: branchesAsync.when(
-        loading: () => const LoadingView(message: 'טוען סניפים...'),
+        loading: () => LoadingView(message: strings.loadingBranches),
         error: (error, stack) => ErrorView(
           message: error.toString(),
+          retryLabel: strings.retry,
           onRetry: () {
             ref.invalidate(branchesProvider);
           },
         ),
         data: (branches) {
           if (branches.isEmpty) {
-            return const EmptyState(
+            return EmptyState(
               icon: Icons.business_outlined,
-              message: 'אין סניפים',
+              message: strings.noBranchesFound,
             );
           }
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionTitle(
-                title: 'סניפים',
-                subtitle: 'רשימת הסניפים הזמינים במערכת.',
+              SectionTitle(
+                title: strings.branches,
+                subtitle: strings.chooseBranchSubtitle,
                 icon: Icons.business,
               ),
               const SizedBox(height: 18),

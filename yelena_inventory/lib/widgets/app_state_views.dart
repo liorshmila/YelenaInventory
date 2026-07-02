@@ -31,8 +31,14 @@ class LoadingView extends StatelessWidget {
 class ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback? onRetry;
+  final String retryLabel;
 
-  const ErrorView({super.key, required this.message, this.onRetry});
+  const ErrorView({
+    super.key,
+    required this.message,
+    this.onRetry,
+    this.retryLabel = 'Retry',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +60,7 @@ class ErrorView extends StatelessWidget {
           if (onRetry != null) ...[
             const SizedBox(height: 24),
             SecondaryButton(
-              label: 'Retry',
+              label: retryLabel,
               icon: Icons.refresh,
               onPressed: onRetry,
             ),

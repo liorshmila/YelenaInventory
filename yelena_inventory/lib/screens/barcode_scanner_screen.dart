@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../localization/app_language.dart';
 import '../services/barcode_beep_service.dart';
 
-class BarcodeScannerScreen extends StatefulWidget {
+class BarcodeScannerScreen extends ConsumerStatefulWidget {
   const BarcodeScannerScreen({super.key});
 
   @override
-  State<BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
+  ConsumerState<BarcodeScannerScreen> createState() =>
+      _BarcodeScannerScreenState();
 }
 
-class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
+class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
   late final MobileScannerController controller;
   bool barcodeReturned = false;
   String? lastBarcodeValue;
@@ -36,12 +39,14 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: const Text('Scan barcode'),
+        title: Text(strings.scanBarcode),
       ),
       body: Stack(
         children: [
@@ -54,7 +59,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
               return const Center(child: CircularProgressIndicator());
             },
           ),
-          const _ScannerOverlay(),
+          _ScannerOverlay(message: strings.pointCameraAtBarcode),
         ],
       ),
     );
@@ -152,10 +157,10 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
   Widget _buildError(BuildContext context, MobileScannerException error) {
     final message = switch (error.errorCode) {
       MobileScannerErrorCode.permissionDenied =>
-        'Camera permission is required to scan barcodes.',
+        ref.read(appStringsProvider).cameraPermissionRequired,
       MobileScannerErrorCode.unsupported =>
-        'Camera scanning is not available on this device.',
-      _ => 'Camera scanning is not available on this device.',
+        ref.read(appStringsProvider).cameraUnavailable,
+      _ => ref.read(appStringsProvider).cameraUnavailable,
     };
 
     return Container(
@@ -183,7 +188,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
             onPressed: () {
               Navigator.pop(context);
             },
-            child: const Text('Close'),
+            child: Text(ref.read(appStringsProvider).close),
           ),
         ],
       ),
@@ -192,7 +197,9 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
 }
 
 class _ScannerOverlay extends StatelessWidget {
-  const _ScannerOverlay();
+  final String message;
+
+  const _ScannerOverlay({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -212,7 +219,7 @@ class _ScannerOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Text(
-                'Point the camera at a barcode',
+                message,
                 textAlign: TextAlign.center,
                 style: Theme.of(
                   context,

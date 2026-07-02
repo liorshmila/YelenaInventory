@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../localization/app_language.dart';
 import '../models/branch_model.dart';
 import '../providers/branch_provider.dart';
 import '../providers/repository_provider.dart';
@@ -17,12 +18,13 @@ class BranchManagementScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final branchesAsync = ref.watch(branchesProvider);
+    final strings = ref.watch(appStringsProvider);
 
     return AppFrame(
       child: branchesAsync.when(
-        loading: () => const LoadingView(message: 'Loading branches...'),
+        loading: () => LoadingView(message: strings.loadingBranches),
         error: (error, stack) => ErrorView(
-          message: 'Could not load branches.',
+          message: strings.couldNotLoadBranches,
           onRetry: () {
             ref.invalidate(branchesProvider);
           },
@@ -33,21 +35,17 @@ class BranchManagementScreen extends ConsumerWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SectionTitle(
-                    title: 'Manage Branches',
-                    subtitle: 'Add, edit, or remove store branches.',
+                  SectionTitle(
+                    title: strings.manageBranches,
+                    subtitle: strings.manageBranchesSubtitle,
                     icon: Icons.business_outlined,
                   ),
                   const SizedBox(height: 18),
                   Expanded(
                     child: branches.isEmpty
-                        ? EmptyStateWithAction(
+                        ? EmptyState(
                             icon: Icons.business_outlined,
-                            message: 'No branches found',
-                            actionLabel: 'Create first branch',
-                            onPressed: () {
-                              _showBranchDialog(context: context, ref: ref);
-                            },
+                            message: strings.noBranchesFound,
                           )
                         : AppScrollbar(
                             builder: (controller) {
@@ -60,6 +58,8 @@ class BranchManagementScreen extends ConsumerWidget {
 
                                   return _BranchManagementTile(
                                     branch: branch,
+                                    editLabel: strings.edit,
+                                    deleteLabel: strings.delete,
                                     onEdit: () {
                                       _showBranchDialog(
                                         context: context,
@@ -107,25 +107,26 @@ class BranchManagementScreen extends ConsumerWidget {
     final controller = TextEditingController(text: branch?.name ?? '');
     final formKey = GlobalKey<FormState>();
     final isEditing = branch != null;
+    final strings = ref.read(appStringsProvider);
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(isEditing ? 'Edit Branch' : 'Add Branch'),
+          title: Text(isEditing ? strings.editBranch : strings.addBranch),
           content: Form(
             key: formKey,
             child: TextFormField(
               controller: controller,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Branch Name',
-                prefixIcon: Icon(Icons.business_outlined),
+              decoration: InputDecoration(
+                labelText: strings.branchName,
+                prefixIcon: const Icon(Icons.business_outlined),
               ),
               textInputAction: TextInputAction.done,
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Branch name is required.';
+                  return strings.branchNameRequired;
                 }
 
                 return null;
@@ -147,7 +148,7 @@ class BranchManagementScreen extends ConsumerWidget {
               onPressed: () {
                 Navigator.pop(dialogContext);
               },
-              child: const Text('Cancel'),
+              child: Text(strings.cancel),
             ),
             FilledButton(
               onPressed: () async {
@@ -160,7 +161,7 @@ class BranchManagementScreen extends ConsumerWidget {
                   branch: branch,
                 );
               },
-              child: const Text('Save'),
+              child: Text(strings.save),
             ),
           ],
         );
@@ -174,7 +175,9 @@ class BranchManagementScreen extends ConsumerWidget {
       ref.invalidate(branchesProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isEditing ? 'Branch updated.' : 'Branch created.'),
+          content: Text(
+            isEditing ? strings.branchUpdated : strings.branchCreated,
+          ),
         ),
       );
     }
@@ -205,9 +208,7 @@ class BranchManagementScreen extends ConsumerWidget {
 
     if (exists) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('A branch with this name already exists.'),
-        ),
+        SnackBar(content: Text(ref.read(appStringsProvider).branchExists)),
       );
       return;
     }
@@ -231,32 +232,45 @@ class BranchManagementScreen extends ConsumerWidget {
     required BranchModel branch,
     required int branchesCount,
   }) async {
-    if (branchesCount <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('At least one branch must exist.')),
-      );
+    final repository = ref.read(inventoryRepositoryProvider);
+    final employeeCount = await repository.branchEmployeeCount(branch.id);
+    final isLastBranch = branchesCount <= 1;
+    final strings = ref.read(appStringsProvider);
+
+    if (!context.mounted) {
       return;
     }
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
+        final title = isLastBranch
+            ? strings.deleteLastBranchTitle
+            : strings.deleteBranchTitle;
+        final message = isLastBranch
+            ? employeeCount > 0
+                  ? strings.lastBranchWithEmployeesWarning
+                  : strings.lastBranchWarning
+            : employeeCount > 0
+            ? strings.branchHasEmployeesWarning
+            : strings.deleteBranchMessage(branch.name);
+
         return AlertDialog(
-          title: const Text('Delete Branch'),
-          content: Text('Delete branch "${branch.name}"?'),
+          title: Text(title),
+          content: Text(message),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext, false);
               },
-              child: const Text('Cancel'),
+              child: Text(strings.cancel),
             ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppTheme.error),
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Delete'),
+              child: Text(strings.delete),
             ),
           ],
         );
@@ -268,7 +282,7 @@ class BranchManagementScreen extends ConsumerWidget {
     }
 
     try {
-      await ref.read(inventoryRepositoryProvider).deleteBranch(branch.id);
+      await repository.deleteBranch(branch.id);
 
       if (!context.mounted) {
         return;
@@ -284,26 +298,30 @@ class BranchManagementScreen extends ConsumerWidget {
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Branch deleted.')));
+      ).showSnackBar(SnackBar(content: Text(strings.branchDeleted)));
     } catch (_) {
       if (!context.mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not delete this branch.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.couldNotDeleteBranch)));
     }
   }
 }
 
 class _BranchManagementTile extends StatelessWidget {
   final BranchModel branch;
+  final String editLabel;
+  final String deleteLabel;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _BranchManagementTile({
     required this.branch,
+    required this.editLabel,
+    required this.deleteLabel,
     required this.onEdit,
     required this.onDelete,
   });
@@ -321,12 +339,12 @@ class _BranchManagementTile extends StatelessWidget {
           spacing: 4,
           children: [
             IconButton(
-              tooltip: 'Edit',
+              tooltip: editLabel,
               onPressed: onEdit,
               icon: const Icon(Icons.edit_outlined),
             ),
             IconButton(
-              tooltip: 'Delete',
+              tooltip: deleteLabel,
               onPressed: onDelete,
               icon: const Icon(Icons.delete_outline, color: AppTheme.error),
             ),

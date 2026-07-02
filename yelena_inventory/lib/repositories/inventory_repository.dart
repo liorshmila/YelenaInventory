@@ -1,20 +1,24 @@
 import 'package:drift/drift.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/datasource/local/inventory_local_data_source.dart';
 import '../data/datasource/remote/inventory_remote_data_source.dart';
 import '../database/app_database.dart';
+import '../services/product_image_storage.dart';
 import 'audit_repository.dart';
 
 class InventoryRepository {
   final InventoryLocalDataSource localDataSource;
   final InventoryRemoteDataSource remoteDataSource;
   final AuditRepository auditRepository;
+  final ProductImageStorage productImageStorage;
 
   InventoryRepository({
     required this.localDataSource,
     required this.remoteDataSource,
     required this.auditRepository,
+    required this.productImageStorage,
   });
 
   // ==========================================
@@ -22,10 +26,29 @@ class InventoryRepository {
   // ==========================================
 
   Future<void> initialize() async {
-    final defaultBranch = await _ensureDefaultBranch();
     final preferences = await SharedPreferences.getInstance();
+    final defaultBranchInitialized =
+        preferences.getBool('default_branch_initialized') ?? false;
     final defaultEmployeesInitialized =
         preferences.getBool('default_employees_initialized') ?? false;
+
+    if (defaultBranchInitialized) {
+      final branches = await localDataSource.getBranches();
+
+      if (branches.isEmpty) {
+        return;
+      }
+
+      if (!defaultEmployeesInitialized) {
+        await _ensureDefaultEmployees(branches.first.id);
+        await preferences.setBool('default_employees_initialized', true);
+      }
+
+      return;
+    }
+
+    final defaultBranch = await _ensureDefaultBranch();
+    await preferences.setBool('default_branch_initialized', true);
 
     if (!defaultEmployeesInitialized) {
       await _ensureDefaultEmployees(defaultBranch.id);
@@ -189,6 +212,12 @@ class InventoryRepository {
     );
   }
 
+  Future<int> branchEmployeeCount(int branchId) async {
+    final employees = await localDataSource.getEmployeesForBranch(branchId);
+
+    return employees.length;
+  }
+
   // ==========================================
   // Branches
   // ==========================================
@@ -241,6 +270,12 @@ class InventoryRepository {
   Future<void> deleteBranch(int id) async {
     final branch = await localDataSource.getBranchById(id);
     final branchName = branch?.name ?? 'Branch #$id';
+    final employees = await localDataSource.getEmployeesForBranch(id);
+
+    for (final employee in employees) {
+      await localDataSource.deleteEmployee(employee.id);
+    }
+
     await localDataSource.deleteBranch(id);
 
     await auditRepository.logAction(
@@ -291,10 +326,36 @@ class InventoryRepository {
   }
 
   Future<void> deleteInventory(int id) async {
+    final itemsBeforeDelete = await localDataSource.getInventory();
+    final deletedItem = itemsBeforeDelete
+        .where((item) => item.id == id)
+        .firstOrNull;
+
     await localDataSource.deleteInventory(id);
+
+    if (deletedItem == null) {
+      return;
+    }
+
+    final remainingItems = await localDataSource.getInventory();
+    final deletedBarcode = deletedItem.barcode.trim();
+    final barcodeStillUsed = remainingItems.any(
+      (item) => item.barcode.trim() == deletedBarcode,
+    );
+
+    if (!barcodeStillUsed) {
+      await deleteProductImage(deletedBarcode);
+    }
   }
 
   Future<void> updateQuantity({required int id, required int quantity}) async {
+    await localDataSource.updateQuantity(id: id, quantity: quantity);
+  }
+
+  Future<void> updateInventoryRecord({
+    required int id,
+    required int quantity,
+  }) async {
     await localDataSource.updateQuantity(id: id, quantity: quantity);
   }
 
@@ -302,6 +363,84 @@ class InventoryRepository {
     final items = await getInventory();
 
     return items.length;
+  }
+
+  // ==========================================
+  // Product images
+  // ==========================================
+
+  Future<ProductImage?> getProductImageForBarcode(String barcode) {
+    return localDataSource.getProductImageForBarcode(barcode.trim());
+  }
+
+  Future<void> saveProductImage({
+    required String barcode,
+    required XFile source,
+  }) async {
+    final normalizedBarcode = barcode.trim();
+    final existing = await getProductImageForBarcode(normalizedBarcode);
+    final imagePath = await productImageStorage.saveBarcodeImage(
+      barcode: normalizedBarcode,
+      source: source,
+    );
+
+    await _persistProductImageMetadata(
+      barcode: normalizedBarcode,
+      imagePath: imagePath,
+      previousImagePath: existing?.imagePath,
+    );
+  }
+
+  Future<void> saveProductImageBytes({
+    required String barcode,
+    required Uint8List sourceBytes,
+  }) async {
+    final normalizedBarcode = barcode.trim();
+    final existing = await getProductImageForBarcode(normalizedBarcode);
+    final imagePath = await productImageStorage.saveBarcodeImageBytes(
+      barcode: normalizedBarcode,
+      sourceBytes: sourceBytes,
+    );
+
+    await _persistProductImageMetadata(
+      barcode: normalizedBarcode,
+      imagePath: imagePath,
+      previousImagePath: existing?.imagePath,
+    );
+  }
+
+  Future<void> _persistProductImageMetadata({
+    required String barcode,
+    required String imagePath,
+    String? previousImagePath,
+  }) async {
+    await localDataSource.upsertProductImage(
+      ProductImagesCompanion.insert(
+        barcode: barcode,
+        imagePath: imagePath,
+        updatedAt: DateTime.now(),
+      ),
+    );
+
+    if (previousImagePath != null && previousImagePath != imagePath) {
+      await productImageStorage.deleteImage(previousImagePath);
+    }
+  }
+
+  Future<void> deleteProductImage(String barcode) async {
+    final normalizedBarcode = barcode.trim();
+    final existing = await getProductImageForBarcode(normalizedBarcode);
+
+    if (existing == null) {
+      return;
+    }
+
+    await localDataSource.deleteProductImageForBarcode(normalizedBarcode);
+    await productImageStorage.deleteImage(existing.imagePath);
+  }
+
+  Future<Uint8List?> readProductImageBytes(String imagePath) {
+    return productImageStorage.readImageBytes(imagePath);
   }
 
   String _employeeFullName({

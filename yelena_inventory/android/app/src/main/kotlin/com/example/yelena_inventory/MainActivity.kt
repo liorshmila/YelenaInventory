@@ -5,21 +5,39 @@ import android.media.ToneGenerator
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import kotlin.system.exitProcess
 
 class MainActivity : FlutterActivity() {
-    private val channelName = "yelena_inventory/barcode_beep"
+    private val beepChannelName = "yelena_inventory/barcode_beep"
+    private val appControlChannelName = "yelena_inventory/app_control"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            channelName
+            beepChannelName
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "playSuccessBeep" -> {
                     playSuccessBeep()
                     result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            appControlChannelName
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "exitApplication" -> {
+                    finishAndRemoveTask()
+                    result.success(null)
+                    window.decorView.postDelayed({
+                        exitProcess(0)
+                    }, 120)
                 }
                 else -> result.notImplemented()
             }

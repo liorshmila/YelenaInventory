@@ -7,6 +7,7 @@ class AppTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final Widget? suffixIcon;
   final FocusNode? focusNode;
+  final String? errorText;
 
   const AppTextField({
     super.key,
@@ -16,6 +17,7 @@ class AppTextField extends StatelessWidget {
     this.keyboardType,
     this.suffixIcon,
     this.focusNode,
+    this.errorText,
   });
 
   @override
@@ -28,6 +30,7 @@ class AppTextField extends StatelessWidget {
         labelText: label,
         prefixIcon: Icon(icon),
         suffixIcon: suffixIcon,
+        errorText: errorText,
       ),
     );
   }

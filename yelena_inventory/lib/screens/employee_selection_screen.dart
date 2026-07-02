@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/app_database.dart';
+import '../localization/app_language.dart';
 import '../providers/employees_provider.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/app_frame.dart';
@@ -26,31 +27,33 @@ class _EmployeeSelectionScreenState
   @override
   Widget build(BuildContext context) {
     final employeesAsync = ref.watch(employeesProvider);
+    final strings = ref.watch(appStringsProvider);
 
     return AppFrame(
       child: employeesAsync.when(
-        loading: () => const LoadingView(message: 'טוען עובדים...'),
+        loading: () => LoadingView(message: strings.loadingEmployees),
         error: (error, stack) => ErrorView(
-          message: 'לא הצלחנו לטעון את רשימת העובדים.',
+          message: strings.couldNotLoadEmployees,
+          retryLabel: strings.retry,
           onRetry: () {
             ref.invalidate(employeesProvider);
           },
         ),
         data: (employees) {
           if (employees.isEmpty) {
-            return const EmptyState(
+            return EmptyState(
               icon: Icons.people_outline,
               message:
-                  'No employees in this branch.\nAdd employees from Settings.',
+                  '${strings.noEmployeesInBranch}\n${strings.addEmployeesFromSettings}',
             );
           }
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionTitle(
-                title: 'בחר עובד',
-                subtitle: 'בחר מי מבצע את ספירת המלאי.',
+              SectionTitle(
+                title: strings.chooseEmployee,
+                subtitle: strings.chooseEmployeeSubtitle,
                 icon: Icons.badge_outlined,
               ),
               const SizedBox(height: 18),
@@ -88,7 +91,7 @@ class _EmployeeSelectionScreenState
               ),
               const SizedBox(height: 16),
               PrimaryButton(
-                label: 'המשך',
+                label: strings.continueLabel,
                 icon: Icons.arrow_forward,
                 onPressed: selectedEmployee == null
                     ? null

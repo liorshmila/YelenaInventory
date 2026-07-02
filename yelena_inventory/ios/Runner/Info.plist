@@ -18,6 +18,8 @@
 	<string>yelena_inventory</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera access is required to scan barcodes.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is required to choose product images.</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

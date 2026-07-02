@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../localization/app_language.dart';
 import '../models/branch_model.dart';
 import '../providers/branch_provider.dart';
+import '../services/app_exit_service.dart';
 import '../widgets/app_frame.dart';
 import '../widgets/app_list_card.dart';
 import '../widgets/app_scrollbar.dart';
 import '../widgets/app_state_views.dart';
 import '../widgets/section_title.dart';
+import 'branch_management_screen.dart';
 import 'employee_selection_screen.dart';
 import 'settings_screen.dart';
 
@@ -18,6 +20,7 @@ class BranchSelectionScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final branchesAsync = ref.watch(branchesProvider);
+    final strings = ref.watch(appStringsProvider);
 
     return PopScope(
       canPop: false,
@@ -26,52 +29,45 @@ class BranchSelectionScreen extends ConsumerWidget {
           return;
         }
 
-        _confirmExit(context);
+        _confirmExit(context, strings);
       },
       child: AppFrame(
-        title: 'Yelena Inventory',
+        title: strings.appTitle,
         leadingWidth: 96,
         leading: Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
             onPressed: () {
-              _confirmExit(context);
+              _confirmExit(context, strings);
             },
             icon: const Icon(Icons.exit_to_app_outlined),
-            label: const Text('Exit'),
+            label: Text(strings.exit),
           ),
         ),
         child: branchesAsync.when(
-          loading: () => const LoadingView(message: 'טוען סניפים...'),
+          loading: () => LoadingView(message: strings.loadingBranches),
           error: (error, stack) => ErrorView(
-            message: 'לא הצלחנו לטעון את רשימת הסניפים.',
+            message: strings.couldNotLoadBranches,
             onRetry: () {
               ref.invalidate(branchesProvider);
             },
           ),
           data: (branches) {
-            if (branches.isEmpty) {
-              return const EmptyState(
-                icon: Icons.business_outlined,
-                message: 'אין סניפים להצגה',
-              );
-            }
-
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: SectionTitle(
-                        title: 'בחר סניף',
-                        subtitle: 'בחר את הסניף שבו מתבצעת ספירת המלאי.',
+                        title: strings.chooseBranch,
+                        subtitle: strings.chooseBranchSubtitle,
                         icon: Icons.storefront,
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Settings',
+                      tooltip: strings.settings,
                       onPressed: () {
                         Navigator.push(
                           context,
@@ -86,34 +82,48 @@ class BranchSelectionScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 18),
                 Expanded(
-                  child: AppScrollbar(
-                    builder: (controller) {
-                      return ListView.builder(
-                        controller: controller,
-                        itemCount: branches.length,
-                        itemBuilder: (context, index) {
-                          final branch = branches[index];
+                  child: branches.isEmpty
+                      ? EmptyStateWithAction(
+                          icon: Icons.business_outlined,
+                          message: strings.noBranchesCreated,
+                          actionLabel: strings.addBranch,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const BranchManagementScreen(),
+                              ),
+                            );
+                          },
+                        )
+                      : AppScrollbar(
+                          builder: (controller) {
+                            return ListView.builder(
+                              controller: controller,
+                              itemCount: branches.length,
+                              itemBuilder: (context, index) {
+                                final branch = branches[index];
 
-                          return _BranchTile(
-                            branch: branch,
-                            onTap: () {
-                              ref
-                                  .read(selectedBranchProvider.notifier)
-                                  .selectBranch(branch);
+                                return _BranchTile(
+                                  branch: branch,
+                                  onTap: () {
+                                    ref
+                                        .read(selectedBranchProvider.notifier)
+                                        .selectBranch(branch);
 
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const EmployeeSelectionScreen(),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      );
-                    },
-                  ),
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const EmployeeSelectionScreen(),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            );
+                          },
+                        ),
                 ),
               ],
             );
@@ -123,24 +133,24 @@ class BranchSelectionScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmExit(BuildContext context) async {
+  Future<void> _confirmExit(BuildContext context, AppStrings strings) async {
     final shouldExit = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Exit application?'),
+          title: Text(strings.exitApplication),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext, false);
               },
-              child: const Text('Cancel'),
+              child: Text(strings.cancel),
             ),
             FilledButton(
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Exit'),
+              child: Text(strings.exit),
             ),
           ],
         );
@@ -148,7 +158,7 @@ class BranchSelectionScreen extends ConsumerWidget {
     );
 
     if (shouldExit == true) {
-      SystemNavigator.pop();
+      await AppExitService.exitApplication();
     }
   }
 }

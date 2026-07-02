@@ -1769,6 +1769,307 @@ class AuditLogsCompanion extends UpdateCompanion<AuditLog> {
   }
 }
 
+class $ProductImagesTable extends ProductImages
+    with TableInfo<$ProductImagesTable, ProductImage> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProductImagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _barcodeMeta = const VerificationMeta(
+    'barcode',
+  );
+  @override
+  late final GeneratedColumn<String> barcode = GeneratedColumn<String>(
+    'barcode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _imagePathMeta = const VerificationMeta(
+    'imagePath',
+  );
+  @override
+  late final GeneratedColumn<String> imagePath = GeneratedColumn<String>(
+    'image_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, barcode, imagePath, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'product_images';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProductImage> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('barcode')) {
+      context.handle(
+        _barcodeMeta,
+        barcode.isAcceptableOrUnknown(data['barcode']!, _barcodeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_barcodeMeta);
+    }
+    if (data.containsKey('image_path')) {
+      context.handle(
+        _imagePathMeta,
+        imagePath.isAcceptableOrUnknown(data['image_path']!, _imagePathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_imagePathMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ProductImage map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProductImage(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      barcode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}barcode'],
+      )!,
+      imagePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}image_path'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ProductImagesTable createAlias(String alias) {
+    return $ProductImagesTable(attachedDatabase, alias);
+  }
+}
+
+class ProductImage extends DataClass implements Insertable<ProductImage> {
+  final int id;
+  final String barcode;
+  final String imagePath;
+  final DateTime updatedAt;
+  const ProductImage({
+    required this.id,
+    required this.barcode,
+    required this.imagePath,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['barcode'] = Variable<String>(barcode);
+    map['image_path'] = Variable<String>(imagePath);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ProductImagesCompanion toCompanion(bool nullToAbsent) {
+    return ProductImagesCompanion(
+      id: Value(id),
+      barcode: Value(barcode),
+      imagePath: Value(imagePath),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ProductImage.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProductImage(
+      id: serializer.fromJson<int>(json['id']),
+      barcode: serializer.fromJson<String>(json['barcode']),
+      imagePath: serializer.fromJson<String>(json['imagePath']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'barcode': serializer.toJson<String>(barcode),
+      'imagePath': serializer.toJson<String>(imagePath),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  ProductImage copyWith({
+    int? id,
+    String? barcode,
+    String? imagePath,
+    DateTime? updatedAt,
+  }) => ProductImage(
+    id: id ?? this.id,
+    barcode: barcode ?? this.barcode,
+    imagePath: imagePath ?? this.imagePath,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ProductImage copyWithCompanion(ProductImagesCompanion data) {
+    return ProductImage(
+      id: data.id.present ? data.id.value : this.id,
+      barcode: data.barcode.present ? data.barcode.value : this.barcode,
+      imagePath: data.imagePath.present ? data.imagePath.value : this.imagePath,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProductImage(')
+          ..write('id: $id, ')
+          ..write('barcode: $barcode, ')
+          ..write('imagePath: $imagePath, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, barcode, imagePath, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProductImage &&
+          other.id == this.id &&
+          other.barcode == this.barcode &&
+          other.imagePath == this.imagePath &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ProductImagesCompanion extends UpdateCompanion<ProductImage> {
+  final Value<int> id;
+  final Value<String> barcode;
+  final Value<String> imagePath;
+  final Value<DateTime> updatedAt;
+  const ProductImagesCompanion({
+    this.id = const Value.absent(),
+    this.barcode = const Value.absent(),
+    this.imagePath = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  ProductImagesCompanion.insert({
+    this.id = const Value.absent(),
+    required String barcode,
+    required String imagePath,
+    required DateTime updatedAt,
+  }) : barcode = Value(barcode),
+       imagePath = Value(imagePath),
+       updatedAt = Value(updatedAt);
+  static Insertable<ProductImage> custom({
+    Expression<int>? id,
+    Expression<String>? barcode,
+    Expression<String>? imagePath,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (barcode != null) 'barcode': barcode,
+      if (imagePath != null) 'image_path': imagePath,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  ProductImagesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? barcode,
+    Value<String>? imagePath,
+    Value<DateTime>? updatedAt,
+  }) {
+    return ProductImagesCompanion(
+      id: id ?? this.id,
+      barcode: barcode ?? this.barcode,
+      imagePath: imagePath ?? this.imagePath,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (barcode.present) {
+      map['barcode'] = Variable<String>(barcode.value);
+    }
+    if (imagePath.present) {
+      map['image_path'] = Variable<String>(imagePath.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProductImagesCompanion(')
+          ..write('id: $id, ')
+          ..write('barcode: $barcode, ')
+          ..write('imagePath: $imagePath, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1778,6 +2079,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $AuditLogsTable auditLogs = $AuditLogsTable(this);
+  late final $ProductImagesTable productImages = $ProductImagesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1787,6 +2089,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     employees,
     inventoryCounts,
     auditLogs,
+    productImages,
   ];
 }
 
@@ -3123,6 +3426,181 @@ typedef $$AuditLogsTableProcessedTableManager =
       AuditLog,
       PrefetchHooks Function()
     >;
+typedef $$ProductImagesTableCreateCompanionBuilder =
+    ProductImagesCompanion Function({
+      Value<int> id,
+      required String barcode,
+      required String imagePath,
+      required DateTime updatedAt,
+    });
+typedef $$ProductImagesTableUpdateCompanionBuilder =
+    ProductImagesCompanion Function({
+      Value<int> id,
+      Value<String> barcode,
+      Value<String> imagePath,
+      Value<DateTime> updatedAt,
+    });
+
+class $$ProductImagesTableFilterComposer
+    extends Composer<_$AppDatabase, $ProductImagesTable> {
+  $$ProductImagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get barcode => $composableBuilder(
+    column: $table.barcode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get imagePath => $composableBuilder(
+    column: $table.imagePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ProductImagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProductImagesTable> {
+  $$ProductImagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get barcode => $composableBuilder(
+    column: $table.barcode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get imagePath => $composableBuilder(
+    column: $table.imagePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ProductImagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProductImagesTable> {
+  $$ProductImagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get barcode =>
+      $composableBuilder(column: $table.barcode, builder: (column) => column);
+
+  GeneratedColumn<String> get imagePath =>
+      $composableBuilder(column: $table.imagePath, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ProductImagesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProductImagesTable,
+          ProductImage,
+          $$ProductImagesTableFilterComposer,
+          $$ProductImagesTableOrderingComposer,
+          $$ProductImagesTableAnnotationComposer,
+          $$ProductImagesTableCreateCompanionBuilder,
+          $$ProductImagesTableUpdateCompanionBuilder,
+          (
+            ProductImage,
+            BaseReferences<_$AppDatabase, $ProductImagesTable, ProductImage>,
+          ),
+          ProductImage,
+          PrefetchHooks Function()
+        > {
+  $$ProductImagesTableTableManager(_$AppDatabase db, $ProductImagesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProductImagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProductImagesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProductImagesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> barcode = const Value.absent(),
+                Value<String> imagePath = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => ProductImagesCompanion(
+                id: id,
+                barcode: barcode,
+                imagePath: imagePath,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String barcode,
+                required String imagePath,
+                required DateTime updatedAt,
+              }) => ProductImagesCompanion.insert(
+                id: id,
+                barcode: barcode,
+                imagePath: imagePath,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ProductImagesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProductImagesTable,
+      ProductImage,
+      $$ProductImagesTableFilterComposer,
+      $$ProductImagesTableOrderingComposer,
+      $$ProductImagesTableAnnotationComposer,
+      $$ProductImagesTableCreateCompanionBuilder,
+      $$ProductImagesTableUpdateCompanionBuilder,
+      (
+        ProductImage,
+        BaseReferences<_$AppDatabase, $ProductImagesTable, ProductImage>,
+      ),
+      ProductImage,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3135,4 +3613,6 @@ class $AppDatabaseManager {
       $$InventoryCountsTableTableManager(_db, _db.inventoryCounts);
   $$AuditLogsTableTableManager get auditLogs =>
       $$AuditLogsTableTableManager(_db, _db.auditLogs);
+  $$ProductImagesTableTableManager get productImages =>
+      $$ProductImagesTableTableManager(_db, _db.productImages);
 }

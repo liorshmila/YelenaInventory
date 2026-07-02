@@ -36,6 +36,12 @@ abstract interface class InventoryLocalDataSource {
   Future<void> deleteInventory(int id);
 
   Future<void> updateQuantity({required int id, required int quantity});
+
+  Future<ProductImage?> getProductImageForBarcode(String barcode);
+
+  Future<void> upsertProductImage(ProductImagesCompanion row);
+
+  Future<void> deleteProductImageForBarcode(String barcode);
 }
 
 class DriftInventoryLocalDataSource implements InventoryLocalDataSource {
@@ -123,5 +129,20 @@ class DriftInventoryLocalDataSource implements InventoryLocalDataSource {
   Future<void> updateQuantity({required int id, required int quantity}) async {
     await (_db.update(_db.inventoryCounts)..where((tbl) => tbl.id.equals(id)))
         .write(InventoryCountsCompanion(quantity: Value(quantity)));
+  }
+
+  @override
+  Future<ProductImage?> getProductImageForBarcode(String barcode) {
+    return _db.getProductImageForBarcode(barcode);
+  }
+
+  @override
+  Future<void> upsertProductImage(ProductImagesCompanion row) {
+    return _db.upsertProductImage(row);
+  }
+
+  @override
+  Future<void> deleteProductImageForBarcode(String barcode) {
+    return _db.deleteProductImageForBarcode(barcode);
   }
 }

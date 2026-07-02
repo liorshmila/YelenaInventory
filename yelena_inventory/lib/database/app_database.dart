@@ -5,15 +5,18 @@ import 'tables/audit_logs.dart';
 import 'tables/branches.dart';
 import 'tables/employees.dart';
 import 'tables/inventory_counts.dart';
+import 'tables/product_images.dart';
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: [Branches, Employees, InventoryCounts, AuditLogs])
+@DriftDatabase(
+  tables: [Branches, Employees, InventoryCounts, AuditLogs, ProductImages],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -23,6 +26,9 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (migrator, from, to) async {
       if (from < 2) {
         await migrator.createTable(auditLogs);
+      }
+      if (from < 3) {
+        await migrator.createTable(productImages);
       }
     },
   );
@@ -93,7 +99,9 @@ class AppDatabase extends _$AppDatabase {
   // ---------- Inventory ----------
 
   Future<List<InventoryCount>> getInventory() {
-    return select(inventoryCounts).get();
+    return (select(
+      inventoryCounts,
+    )..orderBy([(tbl) => OrderingTerm.desc(tbl.countDate)])).get();
   }
 
   Future<int> insertInventory(InventoryCountsCompanion row) {
@@ -116,5 +124,23 @@ class AppDatabase extends _$AppDatabase {
     return (delete(
       auditLogs,
     )..where((tbl) => tbl.timestamp.isSmallerThanValue(cutoff))).go();
+  }
+
+  // ---------- Product Images ----------
+
+  Future<ProductImage?> getProductImageForBarcode(String barcode) {
+    return (select(
+      productImages,
+    )..where((tbl) => tbl.barcode.equals(barcode))).getSingleOrNull();
+  }
+
+  Future<void> upsertProductImage(ProductImagesCompanion row) {
+    return into(productImages).insert(row, mode: InsertMode.insertOrReplace);
+  }
+
+  Future<void> deleteProductImageForBarcode(String barcode) {
+    return (delete(
+      productImages,
+    )..where((tbl) => tbl.barcode.equals(barcode))).go();
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/app_database.dart';
+import '../localization/app_language.dart';
 import '../models/branch_model.dart';
 import '../providers/branch_provider.dart';
 import '../providers/employees_provider.dart';
@@ -29,21 +30,23 @@ class _EmployeeManagementScreenState
   @override
   Widget build(BuildContext context) {
     final branchesAsync = ref.watch(branchesProvider);
+    final strings = ref.watch(appStringsProvider);
 
     return AppFrame(
       child: branchesAsync.when(
-        loading: () => const LoadingView(message: 'Loading branches...'),
+        loading: () => LoadingView(message: strings.loadingBranches),
         error: (error, stack) => ErrorView(
-          message: 'Could not load branches.',
+          message: strings.couldNotLoadBranches,
+          retryLabel: strings.retry,
           onRetry: () {
             ref.invalidate(branchesProvider);
           },
         ),
         data: (branches) {
           if (branches.isEmpty) {
-            return const EmptyState(
+            return EmptyState(
               icon: Icons.business_outlined,
-              message: 'No branches found',
+              message: strings.noBranchesFound,
             );
           }
 
@@ -57,17 +60,17 @@ class _EmployeeManagementScreenState
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SectionTitle(
-                    title: 'Manage Employees',
-                    subtitle: 'Create and maintain employees by branch.',
+                  SectionTitle(
+                    title: strings.manageEmployees,
+                    subtitle: strings.manageEmployeesSubtitle,
                     icon: Icons.people_outline,
                   ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<int>(
                     initialValue: activeBranch.id,
-                    decoration: const InputDecoration(
-                      labelText: 'Branch',
-                      prefixIcon: Icon(Icons.business_outlined),
+                    decoration: InputDecoration(
+                      labelText: strings.branch,
+                      prefixIcon: const Icon(Icons.business_outlined),
                     ),
                     items: branches
                         .map(
@@ -91,9 +94,10 @@ class _EmployeeManagementScreenState
                   Expanded(
                     child: employeesAsync.when(
                       loading: () =>
-                          const LoadingView(message: 'Loading employees...'),
+                          LoadingView(message: strings.loadingEmployees),
                       error: (error, stack) => ErrorView(
-                        message: 'Could not load employees.',
+                        message: strings.couldNotLoadEmployees,
+                        retryLabel: strings.retry,
                         onRetry: () {
                           ref.invalidate(
                             employeesForBranchProvider(activeBranch.id),
@@ -102,9 +106,9 @@ class _EmployeeManagementScreenState
                       ),
                       data: (employees) {
                         if (employees.isEmpty) {
-                          return const EmptyState(
+                          return EmptyState(
                             icon: Icons.people_outline,
-                            message: 'No employees in this branch.',
+                            message: strings.noEmployeesInBranch,
                           );
                         }
 
@@ -119,6 +123,8 @@ class _EmployeeManagementScreenState
 
                                 return _EmployeeManagementTile(
                                   employee: employee,
+                                  editLabel: strings.edit,
+                                  deleteLabel: strings.delete,
                                   onEdit: () {
                                     _showEmployeeDialog(
                                       context: context,
@@ -195,6 +201,7 @@ class _EmployeeManagementScreenState
     final formKey = GlobalKey<FormState>();
     final isEditing = employee != null;
     var dialogBranchId = employee?.branchId ?? initialBranch.id;
+    final strings = ref.read(appStringsProvider);
 
     final saved = await showDialog<bool>(
       context: context,
@@ -202,7 +209,9 @@ class _EmployeeManagementScreenState
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(isEditing ? 'Edit Employee' : 'Add Employee'),
+              title: Text(
+                isEditing ? strings.editEmployee : strings.addEmployee,
+              ),
               content: SingleChildScrollView(
                 child: Form(
                   key: formKey,
@@ -212,14 +221,14 @@ class _EmployeeManagementScreenState
                       TextFormField(
                         controller: firstNameController,
                         autofocus: true,
-                        decoration: const InputDecoration(
-                          labelText: 'First Name',
-                          prefixIcon: Icon(Icons.person_outline),
+                        decoration: InputDecoration(
+                          labelText: strings.firstName,
+                          prefixIcon: const Icon(Icons.person_outline),
                         ),
                         textInputAction: TextInputAction.next,
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'First name is required.';
+                            return strings.firstNameRequired;
                           }
 
                           return null;
@@ -228,14 +237,14 @@ class _EmployeeManagementScreenState
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: lastNameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Last Name',
-                          prefixIcon: Icon(Icons.person_outline),
+                        decoration: InputDecoration(
+                          labelText: strings.lastName,
+                          prefixIcon: const Icon(Icons.person_outline),
                         ),
                         textInputAction: TextInputAction.next,
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Last name is required.';
+                            return strings.lastNameRequired;
                           }
 
                           return null;
@@ -244,9 +253,9 @@ class _EmployeeManagementScreenState
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: phoneController,
-                        decoration: const InputDecoration(
-                          labelText: 'Phone Number',
-                          prefixIcon: Icon(Icons.phone_outlined),
+                        decoration: InputDecoration(
+                          labelText: strings.phoneNumber,
+                          prefixIcon: const Icon(Icons.phone_outlined),
                         ),
                         keyboardType: TextInputType.phone,
                         inputFormatters: [
@@ -257,11 +266,11 @@ class _EmployeeManagementScreenState
                           final phone = value?.trim() ?? '';
 
                           if (phone.isEmpty) {
-                            return 'Phone number is required.';
+                            return strings.phoneRequired;
                           }
 
                           if (!RegExp(r'^\d+$').hasMatch(phone)) {
-                            return 'Phone must contain digits only.';
+                            return strings.phoneDigitsOnly;
                           }
 
                           return null;
@@ -270,9 +279,9 @@ class _EmployeeManagementScreenState
                       const SizedBox(height: 16),
                       DropdownButtonFormField<int>(
                         initialValue: dialogBranchId,
-                        decoration: const InputDecoration(
-                          labelText: 'Branch',
-                          prefixIcon: Icon(Icons.business_outlined),
+                        decoration: InputDecoration(
+                          labelText: strings.branch,
+                          prefixIcon: const Icon(Icons.business_outlined),
                         ),
                         items: branches
                             .map(
@@ -301,7 +310,7 @@ class _EmployeeManagementScreenState
                   onPressed: () {
                     Navigator.pop(dialogContext);
                   },
-                  child: const Text('Cancel'),
+                  child: Text(strings.cancel),
                 ),
                 FilledButton(
                   onPressed: () async {
@@ -317,7 +326,7 @@ class _EmployeeManagementScreenState
                       employee: employee,
                     );
                   },
-                  child: const Text('Save'),
+                  child: Text(strings.save),
                 ),
               ],
             );
@@ -341,7 +350,9 @@ class _EmployeeManagementScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            employee == null ? 'Employee created.' : 'Employee updated.',
+            employee == null
+                ? strings.employeeCreated
+                : strings.employeeUpdated,
           ),
         ),
       );
@@ -380,9 +391,7 @@ class _EmployeeManagementScreenState
 
     if (exists) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('An employee with this name already exists here.'),
-        ),
+        SnackBar(content: Text(ref.read(appStringsProvider).employeeExists)),
       );
       return;
     }
@@ -416,25 +425,26 @@ class _EmployeeManagementScreenState
     required WidgetRef ref,
     required Employee employee,
   }) async {
+    final strings = ref.read(appStringsProvider);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Delete Employee'),
-          content: Text('Delete employee\n${employee.name}?'),
+          title: Text(strings.deleteEmployeeTitle),
+          content: Text(strings.deleteEmployeeMessage(employee.name)),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext, false);
               },
-              child: const Text('Cancel'),
+              child: Text(strings.cancel),
             ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppTheme.error),
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Delete'),
+              child: Text(strings.delete),
             ),
           ],
         );
@@ -462,15 +472,15 @@ class _EmployeeManagementScreenState
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Employee deleted.')));
+      ).showSnackBar(SnackBar(content: Text(strings.employeeDeleted)));
     } catch (_) {
       if (!context.mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not delete this employee.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.couldNotDeleteEmployee)));
     }
   }
 
@@ -491,11 +501,15 @@ class _EmployeeManagementScreenState
 
 class _EmployeeManagementTile extends StatelessWidget {
   final Employee employee;
+  final String editLabel;
+  final String deleteLabel;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _EmployeeManagementTile({
     required this.employee,
+    required this.editLabel,
+    required this.deleteLabel,
     required this.onEdit,
     required this.onDelete,
   });
@@ -513,12 +527,12 @@ class _EmployeeManagementTile extends StatelessWidget {
           spacing: 4,
           children: [
             IconButton(
-              tooltip: 'Edit',
+              tooltip: editLabel,
               onPressed: onEdit,
               icon: const Icon(Icons.edit_outlined),
             ),
             IconButton(
-              tooltip: 'Delete',
+              tooltip: deleteLabel,
               onPressed: onDelete,
               icon: const Icon(Icons.delete_outline, color: AppTheme.error),
             ),
