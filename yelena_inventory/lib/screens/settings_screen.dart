@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 import '../localization/app_language.dart';
 import '../widgets/app_frame.dart';
@@ -183,13 +182,11 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _showAboutDialog({
     required BuildContext context,
     required WidgetRef ref,
-  }) async {
+  }) {
     final strings = ref.read(appStringsProvider);
-    final packageInfo = await PackageInfo.fromPlatform();
-
-    if (!context.mounted) {
-      return;
-    }
+    // TODO: Restore runtime version reading after Gradle/Java SSL trust issue is fixed.
+    const appVersion = '0.3.0';
+    const buildNumber = '3';
 
     return showDialog<void>(
       context: context,
@@ -226,13 +223,13 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                '${strings.version}: ${packageInfo.version}',
+                '${strings.version}: $appVersion',
                 textAlign: TextAlign.center,
                 style: textTheme.bodyMedium,
               ),
               const SizedBox(height: 4),
               Text(
-                '${strings.build}: ${packageInfo.buildNumber}',
+                '${strings.build}: $buildNumber',
                 textAlign: TextAlign.center,
                 style: textTheme.bodyMedium,
               ),
