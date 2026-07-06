@@ -1,4 +1,4 @@
-package com.example.yelena_inventory
+package com.liorshmila.yelenainventory
 
 import android.media.AudioManager
 import android.media.ToneGenerator
