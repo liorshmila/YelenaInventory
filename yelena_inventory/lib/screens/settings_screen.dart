@@ -186,7 +186,6 @@ class SettingsScreen extends ConsumerWidget {
     final strings = ref.read(appStringsProvider);
     // TODO: Restore runtime version reading after Gradle/Java SSL trust issue is fixed.
     const appVersion = '0.3.0';
-    const buildNumber = '3';
 
     return showDialog<void>(
       context: context,
@@ -223,13 +222,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                '${strings.version}: $appVersion',
-                textAlign: TextAlign.center,
-                style: textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${strings.build}: $buildNumber',
+                '${strings.version} $appVersion',
                 textAlign: TextAlign.center,
                 style: textTheme.bodyMedium,
               ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -13,9 +15,12 @@ class BarcodeScannerScreen extends ConsumerStatefulWidget {
       _BarcodeScannerScreenState();
 }
 
-class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
+class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen>
+    with WidgetsBindingObserver {
   late final MobileScannerController controller;
   bool barcodeReturned = false;
+  bool scannerStarting = false;
+  bool scannerDisposed = false;
   String? lastBarcodeValue;
   int stableDetections = 0;
 
@@ -24,17 +29,77 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     controller = MobileScannerController(
+      autoStart: false,
       facing: CameraFacing.back,
       detectionSpeed: DetectionSpeed.normal,
       detectionTimeoutMs: 120,
+      formats: const [
+        BarcodeFormat.ean13,
+        BarcodeFormat.ean8,
+        BarcodeFormat.upcA,
+        BarcodeFormat.upcE,
+        BarcodeFormat.code128,
+        BarcodeFormat.code39,
+        BarcodeFormat.qrCode,
+      ],
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_startScanner());
+    });
   }
 
   @override
   void dispose() {
-    controller.dispose();
+    scannerDisposed = true;
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(controller.dispose());
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (scannerDisposed || barcodeReturned) {
+      return;
+    }
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        unawaited(_startScanner());
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        unawaited(_stopScanner());
+    }
+  }
+
+  Future<void> _startScanner() async {
+    if (!mounted ||
+        scannerDisposed ||
+        scannerStarting ||
+        barcodeReturned ||
+        controller.value.isRunning ||
+        controller.value.isStarting) {
+      return;
+    }
+
+    scannerStarting = true;
+    try {
+      await controller.start();
+    } finally {
+      scannerStarting = false;
+    }
+  }
+
+  Future<void> _stopScanner() async {
+    if (scannerDisposed ||
+        (!controller.value.isRunning && !controller.value.isStarting)) {
+      return;
+    }
+
+    await controller.stop();
   }
 
   @override
@@ -55,6 +120,7 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
             fit: BoxFit.cover,
             onDetect: _handleBarcodeCapture,
             errorBuilder: _buildError,
+            useAppLifecycleState: false,
             placeholderBuilder: (context) {
               return const Center(child: CircularProgressIndicator());
             },
@@ -162,35 +228,64 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
         ref.read(appStringsProvider).cameraUnavailable,
       _ => ref.read(appStringsProvider).cameraUnavailable,
     };
+    final details = error.errorDetails;
+    final diagnosticText = [
+      'Scanner diagnostics',
+      'error.errorCode: ${error.errorCode}',
+      'error.errorDetails?.code: ${details?.code}',
+      'error.errorDetails?.message: ${details?.message}',
+      'error.toString(): $error',
+    ].join('\n');
 
     return Container(
       color: Colors.black,
       padding: const EdgeInsets.all(24),
       alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.no_photography_outlined,
-            color: Colors.white,
-            size: 56,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: Text(ref.read(appStringsProvider).close),
-          ),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.no_photography_outlined,
+              color: Colors.white,
+              size: 56,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: Colors.white),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: SelectableText(
+                diagnosticText,
+                textAlign: TextAlign.left,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white,
+                  fontFamily: 'monospace',
+                  height: 1.35,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text(ref.read(appStringsProvider).close),
+            ),
+          ],
+        ),
       ),
     );
   }
