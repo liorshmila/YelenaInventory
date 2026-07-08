@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'localization/app_language.dart';
 import 'screens/branch_selection_screen.dart';
+import 'services/in_app_update_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -34,7 +35,7 @@ class YelenaInventoryApp extends ConsumerWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const BranchSelectionScreen(),
+      home: const InAppUpdateGate(child: BranchSelectionScreen()),
     );
   }
 }

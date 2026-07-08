@@ -86,6 +86,12 @@ class AppStrings {
   String get delete => isHebrew ? 'מחק' : 'Delete';
   String get edit => isHebrew ? 'ערוך' : 'Edit';
   String get retry => isHebrew ? 'נסה שוב' : 'Retry';
+  String get updateReady => isHebrew ? 'העדכון מוכן' : 'Update ready';
+  String get updateReadyMessage => isHebrew
+      ? 'גרסה חדשה הורדה ומוכנה להתקנה.'
+      : 'A new version has been downloaded and is ready to install.';
+  String get later => isHebrew ? 'אחר כך' : 'Later';
+  String get installUpdate => isHebrew ? 'התקן עדכון' : 'Install update';
   String get exit => isHebrew ? 'יציאה' : 'Exit';
   String get exitApplication =>
       isHebrew ? 'לצאת מהאפליקציה?' : 'Exit application?';
