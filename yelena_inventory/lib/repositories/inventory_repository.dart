@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/datasource/local/inventory_local_data_source.dart';
 import '../data/datasource/remote/inventory_remote_data_source.dart';
 import '../database/app_database.dart';
+import '../models/branch_model.dart';
 import '../services/product_image_storage.dart';
 import 'audit_repository.dart';
 
@@ -222,8 +223,74 @@ class InventoryRepository {
   // Branches
   // ==========================================
 
-  Future<List<Branche>> getBranches() {
-    return localDataSource.getBranches();
+  Future<List<BranchModel>> getBranches() async {
+    final remoteBranches = await remoteDataSource.getActiveBranches();
+    final localBranches = await localDataSource.getBranches();
+    final localByCode = {
+      for (final branch in localBranches)
+        if (branch.branchCode != null)
+          branch.branchCode!.trim().toLowerCase(): branch,
+    };
+    final legacyLocalByName = {
+      for (final branch in localBranches)
+        if (branch.branchCode == null) branch.name.trim().toLowerCase(): branch,
+    };
+    final result = <BranchModel>[];
+
+    for (final remoteBranch in remoteBranches) {
+      final normalizedCode = remoteBranch.branchCode.trim().toLowerCase();
+      final normalizedName = remoteBranch.name.trim().toLowerCase();
+      var localBranch = localByCode[normalizedCode];
+
+      if (localBranch == null) {
+        final legacyBranch = legacyLocalByName.remove(normalizedName);
+        if (legacyBranch != null) {
+          await localDataSource.updateBranchMetadata(
+            id: legacyBranch.id,
+            name: remoteBranch.name.trim(),
+            branchCode: remoteBranch.branchCode,
+          );
+          localBranch = legacyBranch.copyWith(
+            name: remoteBranch.name.trim(),
+            branchCode: Value(remoteBranch.branchCode),
+          );
+        }
+      }
+
+      if (localBranch == null) {
+        final localId = await localDataSource.insertBranch(
+          BranchesCompanion.insert(
+            name: remoteBranch.name.trim(),
+            branchCode: Value(remoteBranch.branchCode),
+          ),
+        );
+        localBranch = Branche(
+          id: localId,
+          name: remoteBranch.name.trim(),
+          branchCode: remoteBranch.branchCode,
+          active: true,
+        );
+      } else if (localBranch.name != remoteBranch.name) {
+        await localDataSource.updateBranchMetadata(
+          id: localBranch.id,
+          name: remoteBranch.name.trim(),
+          branchCode: remoteBranch.branchCode,
+        );
+        localBranch = localBranch.copyWith(name: remoteBranch.name.trim());
+      }
+
+      localByCode[normalizedCode] = localBranch;
+      result.add(
+        BranchModel(
+          id: localBranch.id,
+          remoteId: remoteBranch.id,
+          branchCode: remoteBranch.branchCode,
+          name: remoteBranch.name,
+        ),
+      );
+    }
+
+    return result;
   }
 
   Future<bool> branchNameExists(String name, {int? excludeId}) async {

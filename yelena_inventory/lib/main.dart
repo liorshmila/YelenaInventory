@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'localization/app_language.dart';
 import 'screens/branch_selection_screen.dart';
 import 'services/in_app_update_service.dart';
+import 'services/supabase_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -13,6 +14,7 @@ Future<void> main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+  await SupabaseService.initialize();
 
   runApp(const ProviderScope(child: YelenaInventoryApp()));
 }

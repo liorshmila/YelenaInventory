@@ -30,6 +30,17 @@ class $BranchesTable extends Branches with TableInfo<$BranchesTable, Branche> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _branchCodeMeta = const VerificationMeta(
+    'branchCode',
+  );
+  @override
+  late final GeneratedColumn<String> branchCode = GeneratedColumn<String>(
+    'branch_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _activeMeta = const VerificationMeta('active');
   @override
   late final GeneratedColumn<bool> active = GeneratedColumn<bool>(
@@ -44,7 +55,7 @@ class $BranchesTable extends Branches with TableInfo<$BranchesTable, Branche> {
     defaultValue: const Constant(true),
   );
   @override
-  List<GeneratedColumn> get $columns => [id, name, active];
+  List<GeneratedColumn> get $columns => [id, name, branchCode, active];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -67,6 +78,12 @@ class $BranchesTable extends Branches with TableInfo<$BranchesTable, Branche> {
       );
     } else if (isInserting) {
       context.missing(_nameMeta);
+    }
+    if (data.containsKey('branch_code')) {
+      context.handle(
+        _branchCodeMeta,
+        branchCode.isAcceptableOrUnknown(data['branch_code']!, _branchCodeMeta),
+      );
     }
     if (data.containsKey('active')) {
       context.handle(
@@ -91,6 +108,10 @@ class $BranchesTable extends Branches with TableInfo<$BranchesTable, Branche> {
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      branchCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}branch_code'],
+      ),
       active: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}active'],
@@ -107,13 +128,22 @@ class $BranchesTable extends Branches with TableInfo<$BranchesTable, Branche> {
 class Branche extends DataClass implements Insertable<Branche> {
   final int id;
   final String name;
+  final String? branchCode;
   final bool active;
-  const Branche({required this.id, required this.name, required this.active});
+  const Branche({
+    required this.id,
+    required this.name,
+    this.branchCode,
+    required this.active,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['name'] = Variable<String>(name);
+    if (!nullToAbsent || branchCode != null) {
+      map['branch_code'] = Variable<String>(branchCode);
+    }
     map['active'] = Variable<bool>(active);
     return map;
   }
@@ -122,6 +152,9 @@ class Branche extends DataClass implements Insertable<Branche> {
     return BranchesCompanion(
       id: Value(id),
       name: Value(name),
+      branchCode: branchCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(branchCode),
       active: Value(active),
     );
   }
@@ -134,6 +167,7 @@ class Branche extends DataClass implements Insertable<Branche> {
     return Branche(
       id: serializer.fromJson<int>(json['id']),
       name: serializer.fromJson<String>(json['name']),
+      branchCode: serializer.fromJson<String?>(json['branchCode']),
       active: serializer.fromJson<bool>(json['active']),
     );
   }
@@ -143,19 +177,29 @@ class Branche extends DataClass implements Insertable<Branche> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'name': serializer.toJson<String>(name),
+      'branchCode': serializer.toJson<String?>(branchCode),
       'active': serializer.toJson<bool>(active),
     };
   }
 
-  Branche copyWith({int? id, String? name, bool? active}) => Branche(
+  Branche copyWith({
+    int? id,
+    String? name,
+    Value<String?> branchCode = const Value.absent(),
+    bool? active,
+  }) => Branche(
     id: id ?? this.id,
     name: name ?? this.name,
+    branchCode: branchCode.present ? branchCode.value : this.branchCode,
     active: active ?? this.active,
   );
   Branche copyWithCompanion(BranchesCompanion data) {
     return Branche(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
+      branchCode: data.branchCode.present
+          ? data.branchCode.value
+          : this.branchCode,
       active: data.active.present ? data.active.value : this.active,
     );
   }
@@ -165,44 +209,51 @@ class Branche extends DataClass implements Insertable<Branche> {
     return (StringBuffer('Branche(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('branchCode: $branchCode, ')
           ..write('active: $active')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, active);
+  int get hashCode => Object.hash(id, name, branchCode, active);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is Branche &&
           other.id == this.id &&
           other.name == this.name &&
+          other.branchCode == this.branchCode &&
           other.active == this.active);
 }
 
 class BranchesCompanion extends UpdateCompanion<Branche> {
   final Value<int> id;
   final Value<String> name;
+  final Value<String?> branchCode;
   final Value<bool> active;
   const BranchesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
+    this.branchCode = const Value.absent(),
     this.active = const Value.absent(),
   });
   BranchesCompanion.insert({
     this.id = const Value.absent(),
     required String name,
+    this.branchCode = const Value.absent(),
     this.active = const Value.absent(),
   }) : name = Value(name);
   static Insertable<Branche> custom({
     Expression<int>? id,
     Expression<String>? name,
+    Expression<String>? branchCode,
     Expression<bool>? active,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
+      if (branchCode != null) 'branch_code': branchCode,
       if (active != null) 'active': active,
     });
   }
@@ -210,11 +261,13 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
   BranchesCompanion copyWith({
     Value<int>? id,
     Value<String>? name,
+    Value<String?>? branchCode,
     Value<bool>? active,
   }) {
     return BranchesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
+      branchCode: branchCode ?? this.branchCode,
       active: active ?? this.active,
     );
   }
@@ -228,6 +281,9 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
+    if (branchCode.present) {
+      map['branch_code'] = Variable<String>(branchCode.value);
+    }
     if (active.present) {
       map['active'] = Variable<bool>(active.value);
     }
@@ -239,6 +295,7 @@ class BranchesCompanion extends UpdateCompanion<Branche> {
     return (StringBuffer('BranchesCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('branchCode: $branchCode, ')
           ..write('active: $active')
           ..write(')'))
         .toString();
@@ -2097,12 +2154,14 @@ typedef $$BranchesTableCreateCompanionBuilder =
     BranchesCompanion Function({
       Value<int> id,
       required String name,
+      Value<String?> branchCode,
       Value<bool> active,
     });
 typedef $$BranchesTableUpdateCompanionBuilder =
     BranchesCompanion Function({
       Value<int> id,
       Value<String> name,
+      Value<String?> branchCode,
       Value<bool> active,
     });
 
@@ -2147,6 +2206,11 @@ class $$BranchesTableFilterComposer
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get branchCode => $composableBuilder(
+    column: $table.branchCode,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2200,6 +2264,11 @@ class $$BranchesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get branchCode => $composableBuilder(
+    column: $table.branchCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get active => $composableBuilder(
     column: $table.active,
     builder: (column) => ColumnOrderings(column),
@@ -2220,6 +2289,11 @@ class $$BranchesTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get branchCode => $composableBuilder(
+    column: $table.branchCode,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get active =>
       $composableBuilder(column: $table.active, builder: (column) => column);
@@ -2280,15 +2354,26 @@ class $$BranchesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<String?> branchCode = const Value.absent(),
                 Value<bool> active = const Value.absent(),
-              }) => BranchesCompanion(id: id, name: name, active: active),
+              }) => BranchesCompanion(
+                id: id,
+                name: name,
+                branchCode: branchCode,
+                active: active,
+              ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
                 required String name,
+                Value<String?> branchCode = const Value.absent(),
                 Value<bool> active = const Value.absent(),
-              }) =>
-                  BranchesCompanion.insert(id: id, name: name, active: active),
+              }) => BranchesCompanion.insert(
+                id: id,
+                name: name,
+                branchCode: branchCode,
+                active: active,
+              ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (

@@ -27,6 +27,12 @@ abstract interface class InventoryLocalDataSource {
 
   Future<void> updateBranchName({required int id, required String name});
 
+  Future<void> updateBranchMetadata({
+    required int id,
+    required String name,
+    required String branchCode,
+  });
+
   Future<void> deleteBranch(int id);
 
   Future<List<InventoryCount>> getInventory();
@@ -101,6 +107,15 @@ class DriftInventoryLocalDataSource implements InventoryLocalDataSource {
   @override
   Future<void> updateBranchName({required int id, required String name}) {
     return _db.updateBranchName(id: id, name: name);
+  }
+
+  @override
+  Future<void> updateBranchMetadata({
+    required int id,
+    required String name,
+    required String branchCode,
+  }) {
+    return _db.updateBranchMetadata(id: id, name: name, branchCode: branchCode);
   }
 
   @override

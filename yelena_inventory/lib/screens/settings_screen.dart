@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../localization/app_language.dart';
+import '../services/app_version_service.dart';
 import '../widgets/app_frame.dart';
 import '../widgets/app_list_card.dart';
 import '../widgets/app_scrollbar.dart';
@@ -182,12 +183,12 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _showAboutDialog({
     required BuildContext context,
     required WidgetRef ref,
-  }) {
+  }) async {
     final strings = ref.read(appStringsProvider);
-    // TODO: Restore runtime version reading after Gradle/Java SSL trust issue is fixed.
-    const appVersion = '0.3.0';
+    final appVersion = await AppVersionService.getInstalledVersion();
+    if (!context.mounted) return;
 
-    return showDialog<void>(
+    await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         final textTheme = Theme.of(dialogContext).textTheme;
@@ -221,11 +222,19 @@ class SettingsScreen extends ConsumerWidget {
                 style: textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
-              Text(
-                '${strings.version} $appVersion',
-                textAlign: TextAlign.center,
-                style: textTheme.bodyMedium,
-              ),
+              if (appVersion != null) ...[
+                Text(
+                  '${strings.version} ${appVersion.version}',
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${strings.build} ${appVersion.buildNumber}',
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyMedium,
+                ),
+              ],
               const SizedBox(height: 16),
               Text(
                 '© 2026',

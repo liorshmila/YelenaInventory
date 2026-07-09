@@ -16,7 +16,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -29,6 +29,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         await migrator.createTable(productImages);
+      }
+      if (from < 4) {
+        await migrator.addColumn(branches, branches.branchCode);
       }
     },
   );
@@ -89,6 +92,16 @@ class AppDatabase extends _$AppDatabase {
   Future<void> updateBranchName({required int id, required String name}) {
     return (update(branches)..where((tbl) => tbl.id.equals(id))).write(
       BranchesCompanion(name: Value(name)),
+    );
+  }
+
+  Future<void> updateBranchMetadata({
+    required int id,
+    required String name,
+    required String branchCode,
+  }) {
+    return (update(branches)..where((tbl) => tbl.id.equals(id))).write(
+      BranchesCompanion(name: Value(name), branchCode: Value(branchCode)),
     );
   }
 

@@ -90,6 +90,12 @@ class AppStrings {
   String get updateReadyMessage => isHebrew
       ? 'גרסה חדשה הורדה ומוכנה להתקנה.'
       : 'A new version has been downloaded and is ready to install.';
+  String get updateAvailable =>
+      isHebrew ? 'גרסה חדשה זמינה' : 'New version available';
+  String get updateAvailableMessage => isHebrew
+      ? 'גרסה חדשה זמינה. האם לעדכן עכשיו?'
+      : 'A new version is available. Do you want to update now?';
+  String get updateNow => isHebrew ? 'עדכן עכשיו' : 'Update now';
   String get later => isHebrew ? 'אחר כך' : 'Later';
   String get installUpdate => isHebrew ? 'התקן עדכון' : 'Install update';
   String get exit => isHebrew ? 'יציאה' : 'Exit';

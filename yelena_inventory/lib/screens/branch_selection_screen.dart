@@ -10,7 +10,6 @@ import '../widgets/app_list_card.dart';
 import '../widgets/app_scrollbar.dart';
 import '../widgets/app_state_views.dart';
 import '../widgets/section_title.dart';
-import 'branch_management_screen.dart';
 import 'employee_selection_screen.dart';
 import 'settings_screen.dart';
 
@@ -83,18 +82,9 @@ class BranchSelectionScreen extends ConsumerWidget {
                 const SizedBox(height: 18),
                 Expanded(
                   child: branches.isEmpty
-                      ? EmptyStateWithAction(
+                      ? EmptyState(
                           icon: Icons.business_outlined,
                           message: strings.noBranchesCreated,
-                          actionLabel: strings.addBranch,
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const BranchManagementScreen(),
-                              ),
-                            );
-                          },
                         )
                       : AppScrollbar(
                           builder: (controller) {

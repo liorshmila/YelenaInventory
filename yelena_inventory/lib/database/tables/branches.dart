@@ -5,6 +5,7 @@ class Branches extends Table {
 
   TextColumn get name => text()();
 
-  BoolColumn get active =>
-      boolean().withDefault(const Constant(true))();
+  TextColumn get branchCode => text().nullable()();
+
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
 }

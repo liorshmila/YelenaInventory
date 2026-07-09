@@ -8,11 +8,7 @@ final branchesProvider = FutureProvider<List<BranchModel>>((ref) async {
 
   await repo.initialize();
 
-  final branches = await repo.getBranches();
-
-  return branches
-      .map((branch) => BranchModel(id: branch.id, name: branch.name))
-      .toList();
+  return repo.getBranches();
 });
 
 final selectedBranchProvider =
