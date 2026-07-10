@@ -308,47 +308,54 @@ class InventoryRepository {
 
   Future<void> addBranch(String name) async {
     final branchName = name.trim();
-    final branchId = await localDataSource.insertBranch(
-      BranchesCompanion.insert(name: name.trim()),
-    );
+    await remoteDataSource.createBranch(name: branchName);
 
     await auditRepository.logAction(
       action: 'BranchCreated',
       entityType: 'Branch',
-      entityId: branchId,
       description: 'Branch $branchName created.',
       branchName: branchName,
     );
   }
 
-  Future<void> updateBranch({required int id, required String name}) async {
+  Future<void> updateBranch({
+    required BranchModel branch,
+    required String name,
+  }) async {
+    final remoteId = branch.remoteId?.trim();
+    if (remoteId == null || remoteId.isEmpty) {
+      throw StateError('Branch is missing its Supabase id.');
+    }
+
     final branchName = name.trim();
-    await localDataSource.updateBranchName(id: id, name: branchName);
+    await remoteDataSource.updateBranch(id: remoteId, name: branchName);
 
     await auditRepository.logAction(
       action: 'BranchUpdated',
       entityType: 'Branch',
-      entityId: id,
       description: 'Branch $branchName updated.',
       branchName: branchName,
     );
   }
 
-  Future<void> deleteBranch(int id) async {
-    final branch = await localDataSource.getBranchById(id);
-    final branchName = branch?.name ?? 'Branch #$id';
-    final employees = await localDataSource.getEmployeesForBranch(id);
+  Future<void> deleteBranch(BranchModel branch) async {
+    final remoteId = branch.remoteId?.trim();
+    if (remoteId == null || remoteId.isEmpty) {
+      throw StateError('Branch is missing its Supabase id.');
+    }
+
+    final branchName = branch.name;
+    final employees = await localDataSource.getEmployeesForBranch(branch.id);
+
+    await remoteDataSource.deactivateBranch(remoteId);
 
     for (final employee in employees) {
       await localDataSource.deleteEmployee(employee.id);
     }
 
-    await localDataSource.deleteBranch(id);
-
     await auditRepository.logAction(
       action: 'BranchDeleted',
       entityType: 'Branch',
-      entityId: id,
       description: 'Branch $branchName deleted.',
       branchName: branchName,
     );

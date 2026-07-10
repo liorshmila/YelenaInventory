@@ -108,62 +108,83 @@ class BranchManagementScreen extends ConsumerWidget {
     final formKey = GlobalKey<FormState>();
     final isEditing = branch != null;
     final strings = ref.read(appStringsProvider);
+    String? duplicateNameError;
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(isEditing ? strings.editBranch : strings.addBranch),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              controller: controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: strings.branchName,
-                prefixIcon: const Icon(Icons.business_outlined),
-              ),
-              textInputAction: TextInputAction.done,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return strings.branchNameRequired;
-                }
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            void showDuplicateNameError() {
+              setDialogState(() {
+                duplicateNameError = strings.branchExists;
+              });
+            }
 
-                return null;
-              },
-              onFieldSubmitted: (_) async {
-                await _saveBranch(
-                  context: context,
-                  dialogContext: dialogContext,
-                  ref: ref,
-                  formKey: formKey,
+            return AlertDialog(
+              title: Text(isEditing ? strings.editBranch : strings.addBranch),
+              content: Form(
+                key: formKey,
+                child: TextFormField(
                   controller: controller,
-                  branch: branch,
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: Text(strings.cancel),
-            ),
-            FilledButton(
-              onPressed: () async {
-                await _saveBranch(
-                  context: context,
-                  dialogContext: dialogContext,
-                  ref: ref,
-                  formKey: formKey,
-                  controller: controller,
-                  branch: branch,
-                );
-              },
-              child: Text(strings.save),
-            ),
-          ],
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: strings.branchName,
+                    prefixIcon: const Icon(Icons.business_outlined),
+                    errorText: duplicateNameError,
+                  ),
+                  textInputAction: TextInputAction.done,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return strings.branchNameRequired;
+                    }
+
+                    return null;
+                  },
+                  onChanged: (_) {
+                    if (duplicateNameError != null) {
+                      setDialogState(() {
+                        duplicateNameError = null;
+                      });
+                    }
+                  },
+                  onFieldSubmitted: (_) async {
+                    await _saveBranch(
+                      context: context,
+                      dialogContext: dialogContext,
+                      ref: ref,
+                      formKey: formKey,
+                      controller: controller,
+                      branch: branch,
+                      onDuplicateName: showDuplicateNameError,
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  child: Text(strings.cancel),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    await _saveBranch(
+                      context: context,
+                      dialogContext: dialogContext,
+                      ref: ref,
+                      formKey: formKey,
+                      controller: controller,
+                      branch: branch,
+                      onDuplicateName: showDuplicateNameError,
+                    );
+                  },
+                  child: Text(strings.save),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -189,6 +210,7 @@ class BranchManagementScreen extends ConsumerWidget {
     required WidgetRef ref,
     required GlobalKey<FormState> formKey,
     required TextEditingController controller,
+    required VoidCallback onDuplicateName,
     BranchModel? branch,
   }) async {
     if (!formKey.currentState!.validate()) {
@@ -207,16 +229,23 @@ class BranchManagementScreen extends ConsumerWidget {
     }
 
     if (exists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ref.read(appStringsProvider).branchExists)),
-      );
+      onDuplicateName();
       return;
     }
 
-    if (branch == null) {
-      await repository.addBranch(name);
-    } else {
-      await repository.updateBranch(id: branch.id, name: name);
+    try {
+      if (branch == null) {
+        await repository.addBranch(name);
+      } else {
+        await repository.updateBranch(branch: branch, name: name);
+      }
+    } on StateError catch (error) {
+      if (error.message == 'Branch name already exists.') {
+        onDuplicateName();
+        return;
+      }
+
+      rethrow;
     }
 
     if (!context.mounted || !dialogContext.mounted) {
@@ -282,7 +311,7 @@ class BranchManagementScreen extends ConsumerWidget {
     }
 
     try {
-      await repository.deleteBranch(branch.id);
+      await repository.deleteBranch(branch);
 
       if (!context.mounted) {
         return;
