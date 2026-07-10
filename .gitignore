@@ -34,3 +34,5 @@ Thumbs.db
 
 **/.dart_tool/
 **/build/
+
+scripts/release.env.ps1

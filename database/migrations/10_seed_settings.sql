@@ -6,4 +6,5 @@ values
     ('schema_version', '"0.4.0"'::jsonb),
     ('minimum_app_version', '"0.4.0"'::jsonb)
 on conflict (key) do update
-set value = excluded.value;
+set value = excluded.value,
+    updated_at = now();

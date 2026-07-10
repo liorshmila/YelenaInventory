@@ -37,6 +37,16 @@ create table if not exists public.products (
     updated_at timestamptz not null default now()
 );
 
+-- 3. Relationship tables
+create table if not exists public.employee_branches (
+    id uuid primary key default gen_random_uuid(),
+    employee_id uuid not null references public.employees(id),
+    branch_id uuid not null references public.branches(id),
+    is_active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
 create table if not exists public.inventory_counts (
     id uuid primary key default gen_random_uuid(),
     product_id uuid not null references public.products(id),
@@ -46,16 +56,6 @@ create table if not exists public.inventory_counts (
     counted_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     created_at timestamptz not null default now()
-);
-
--- 3. Relationship tables
-create table if not exists public.employee_branches (
-    id uuid primary key default gen_random_uuid(),
-    employee_id uuid not null references public.employees(id),
-    branch_id uuid not null references public.branches(id),
-    is_active boolean not null default true,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
 );
 
 -- 4. System tables
@@ -230,7 +230,8 @@ values
     ('schema_version', '"0.4.0"'::jsonb),
     ('minimum_app_version', '"0.4.0"'::jsonb)
 on conflict (key) do update
-set value = excluded.value;
+set value = excluded.value,
+    updated_at = now();
 
 -- 11. Verification queries
 with required_tables(table_name) as (

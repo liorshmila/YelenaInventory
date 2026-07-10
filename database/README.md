@@ -44,6 +44,13 @@ files and can be executed as one complete script.
 The script creates database structures and system settings only. It does not
 create sample branches, employees, products, or inventory counts.
 
+`create table if not exists` is primarily a safeguard for fresh database
+creation and repeat execution against the same approved schema. It does not
+alter an existing table when a later schema version adds, removes, or changes
+columns. Future schema changes must be implemented as explicit, ordered
+migrations rather than by relying on the creation script to update existing
+tables automatically.
+
 ## Intentionally Excluded
 
 The current approved scope does not include:
