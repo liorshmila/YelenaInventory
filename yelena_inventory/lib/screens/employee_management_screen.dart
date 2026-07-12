@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../database/app_database.dart';
 import '../localization/app_language.dart';
 import '../models/branch_model.dart';
+import '../models/employee_model.dart';
 import '../providers/branch_provider.dart';
 import '../providers/employees_provider.dart';
 import '../providers/repository_provider.dart';
@@ -52,7 +52,7 @@ class _EmployeeManagementScreenState
 
           final activeBranch = _activeBranch(branches);
           final employeesAsync = ref.watch(
-            employeesForBranchProvider(activeBranch.id),
+            employeeManagementEmployeesProvider(activeBranch),
           );
 
           return Stack(
@@ -100,7 +100,7 @@ class _EmployeeManagementScreenState
                         retryLabel: strings.retry,
                         onRetry: () {
                           ref.invalidate(
-                            employeesForBranchProvider(activeBranch.id),
+                            employeeManagementEmployeesProvider(activeBranch),
                           );
                         },
                       ),
@@ -139,6 +139,7 @@ class _EmployeeManagementScreenState
                                       context: context,
                                       ref: ref,
                                       employee: employee,
+                                      branch: activeBranch,
                                     );
                                   },
                                 );
@@ -192,22 +193,31 @@ class _EmployeeManagementScreenState
     required WidgetRef ref,
     required List<BranchModel> branches,
     required BranchModel initialBranch,
-    Employee? employee,
+    EmployeeModel? employee,
   }) async {
     final nameParts = _splitEmployeeName(employee?.name ?? '');
     final firstNameController = TextEditingController(text: nameParts.first);
     final lastNameController = TextEditingController(text: nameParts.last);
-    final phoneController = TextEditingController();
+    final phoneController = TextEditingController(text: employee?.phone ?? '');
     final formKey = GlobalKey<FormState>();
     final isEditing = employee != null;
-    var dialogBranchId = employee?.branchId ?? initialBranch.id;
+    var dialogBranch = employee == null
+        ? initialBranch
+        : _branchForRemoteId(branches, employee.branchId) ?? initialBranch;
     final strings = ref.read(appStringsProvider);
+    String? duplicateNameError;
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            void showDuplicateNameError() {
+              setDialogState(() {
+                duplicateNameError = strings.employeeExists;
+              });
+            }
+
             return AlertDialog(
               title: Text(
                 isEditing ? strings.editEmployee : strings.addEmployee,
@@ -224,8 +234,16 @@ class _EmployeeManagementScreenState
                         decoration: InputDecoration(
                           labelText: strings.firstName,
                           prefixIcon: const Icon(Icons.person_outline),
+                          errorText: duplicateNameError,
                         ),
                         textInputAction: TextInputAction.next,
+                        onChanged: (_) {
+                          if (duplicateNameError != null) {
+                            setDialogState(() {
+                              duplicateNameError = null;
+                            });
+                          }
+                        },
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return strings.firstNameRequired;
@@ -242,6 +260,13 @@ class _EmployeeManagementScreenState
                           prefixIcon: const Icon(Icons.person_outline),
                         ),
                         textInputAction: TextInputAction.next,
+                        onChanged: (_) {
+                          if (duplicateNameError != null) {
+                            setDialogState(() {
+                              duplicateNameError = null;
+                            });
+                          }
+                        },
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return strings.lastNameRequired;
@@ -278,7 +303,7 @@ class _EmployeeManagementScreenState
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<int>(
-                        initialValue: dialogBranchId,
+                        initialValue: dialogBranch.id,
                         decoration: InputDecoration(
                           labelText: strings.branch,
                           prefixIcon: const Icon(Icons.business_outlined),
@@ -296,8 +321,13 @@ class _EmployeeManagementScreenState
                             return;
                           }
 
+                          final selected = branches.firstWhere(
+                            (branch) => branch.id == value,
+                          );
+
                           setDialogState(() {
-                            dialogBranchId = value;
+                            dialogBranch = selected;
+                            duplicateNameError = null;
                           });
                         },
                       ),
@@ -322,8 +352,9 @@ class _EmployeeManagementScreenState
                       firstNameController: firstNameController,
                       lastNameController: lastNameController,
                       phoneController: phoneController,
-                      branchId: dialogBranchId,
+                      branch: dialogBranch,
                       employee: employee,
+                      onDuplicateName: showDuplicateNameError,
                     );
                   },
                   child: Text(strings.save),
@@ -341,11 +372,7 @@ class _EmployeeManagementScreenState
     phoneController.dispose();
 
     if (saved == true && context.mounted) {
-      ref.invalidate(employeesProvider);
-      ref.invalidate(employeesForBranchProvider(dialogBranchId));
-      if (employee != null && employee.branchId != dialogBranchId) {
-        ref.invalidate(employeesForBranchProvider(employee.branchId));
-      }
+      ref.invalidate(employeeManagementEmployeesProvider);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -367,8 +394,9 @@ class _EmployeeManagementScreenState
     required TextEditingController firstNameController,
     required TextEditingController lastNameController,
     required TextEditingController phoneController,
-    required int branchId,
-    Employee? employee,
+    required BranchModel branch,
+    required VoidCallback onDuplicateName,
+    EmployeeModel? employee,
   }) async {
     if (!formKey.currentState!.validate()) {
       return;
@@ -379,38 +407,46 @@ class _EmployeeManagementScreenState
     final lastName = lastNameController.text.trim();
     final phone = phoneController.text.trim();
     final fullName = '$firstName $lastName'.trim();
-    final exists = await repository.employeeNameExistsInBranch(
-      fullName: fullName,
-      branchId: branchId,
-      excludeId: employee?.id,
-    );
+    final managementExists = await repository
+        .employeeManagementNameExistsInBranch(
+          fullName: fullName,
+          branch: branch,
+          excludeEmployeeId: employee?.id,
+        );
 
     if (!context.mounted || !dialogContext.mounted) {
       return;
     }
 
-    if (exists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ref.read(appStringsProvider).employeeExists)),
-      );
+    if (managementExists) {
+      onDuplicateName();
       return;
     }
 
-    if (employee == null) {
-      await repository.addEmployee(
-        firstName: firstName,
-        lastName: lastName,
-        phone: phone,
-        branchId: branchId,
-      );
-    } else {
-      await repository.updateEmployee(
-        id: employee.id,
-        firstName: firstName,
-        lastName: lastName,
-        phone: phone,
-        branchId: branchId,
-      );
+    try {
+      if (employee == null) {
+        await repository.addEmployeeForManagement(
+          firstName: firstName,
+          lastName: lastName,
+          phone: phone,
+          branch: branch,
+        );
+      } else {
+        await repository.updateEmployeeForManagement(
+          employee: employee,
+          firstName: firstName,
+          lastName: lastName,
+          phone: phone,
+          branch: branch,
+        );
+      }
+    } on StateError catch (error) {
+      if (error.message == 'Employee name already exists in this branch.') {
+        onDuplicateName();
+        return;
+      }
+
+      rethrow;
     }
 
     if (!context.mounted || !dialogContext.mounted) {
@@ -423,7 +459,8 @@ class _EmployeeManagementScreenState
   Future<void> _confirmDeleteEmployee({
     required BuildContext context,
     required WidgetRef ref,
-    required Employee employee,
+    required EmployeeModel employee,
+    required BranchModel branch,
   }) async {
     final strings = ref.read(appStringsProvider);
     final confirmed = await showDialog<bool>(
@@ -456,10 +493,11 @@ class _EmployeeManagementScreenState
     }
 
     try {
-      await ref.read(inventoryRepositoryProvider).deleteEmployee(employee.id);
-      ref.invalidate(employeesProvider);
+      await ref
+          .read(inventoryRepositoryProvider)
+          .deactivateEmployeeForManagement(employee);
       final refreshedEmployees = await ref.refresh(
-        employeesForBranchProvider(employee.branchId).future,
+        employeeManagementEmployeesProvider(branch).future,
       );
 
       if (refreshedEmployees.any((item) => item.id == employee.id)) {
@@ -497,10 +535,20 @@ class _EmployeeManagementScreenState
 
     return (first: parts.first, last: parts.skip(1).join(' '));
   }
+
+  BranchModel? _branchForRemoteId(List<BranchModel> branches, String remoteId) {
+    for (final branch in branches) {
+      if (branch.remoteId == remoteId) {
+        return branch;
+      }
+    }
+
+    return null;
+  }
 }
 
 class _EmployeeManagementTile extends StatelessWidget {
-  final Employee employee;
+  final EmployeeModel employee;
   final String editLabel;
   final String deleteLabel;
   final VoidCallback onEdit;

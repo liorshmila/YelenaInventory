@@ -6,6 +6,7 @@ import '../database/app_database.dart';
 import '../repositories/audit_repository.dart';
 import '../repositories/inventory_repository.dart';
 import '../services/product_image_storage.dart';
+import '../services/realtime/realtime_service.dart';
 import '../services/supabase_service.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -40,6 +41,14 @@ final auditRepositoryProvider = Provider<AuditRepository>((ref) {
 
 final productImageStorageProvider = Provider<ProductImageStorage>((ref) {
   return ProductImageStorage();
+});
+
+final realtimeServiceProvider = Provider<RealtimeService>((ref) {
+  final service = RealtimeService(SupabaseService.client);
+
+  ref.onDispose(service.dispose);
+
+  return service;
 });
 
 final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {

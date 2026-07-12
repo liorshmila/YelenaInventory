@@ -6,6 +6,10 @@ import 'package:image_picker/image_picker.dart';
 
 import '../database/app_database.dart';
 import '../localization/app_language.dart';
+import '../models/branch_model.dart';
+import '../models/employee_model.dart';
+import '../models/inventory_count_model.dart';
+import '../providers/inventory_db_provider.dart';
 import '../providers/repository_provider.dart';
 import '../repositories/inventory_repository.dart';
 import '../theme/app_theme.dart';
@@ -20,9 +24,10 @@ import '../widgets/section_title.dart';
 import 'barcode_scanner_screen.dart';
 
 class ScanScreen extends ConsumerStatefulWidget {
-  final Employee employee;
+  final BranchModel branch;
+  final EmployeeModel employee;
 
-  const ScanScreen({super.key, required this.employee});
+  const ScanScreen({super.key, required this.branch, required this.employee});
 
   @override
   ConsumerState<ScanScreen> createState() => _ScanScreenState();
@@ -35,7 +40,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   final quantityFocusNode = FocusNode();
   final imagePicker = ImagePicker();
 
-  List<InventoryCount> inventory = [];
+  List<InventoryCountModel> inventory = [];
   ProductImage? currentProductImage;
   Uint8List? pendingProductImageBytes;
   String loadedImageBarcode = '';
@@ -61,7 +66,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
   Future<void> loadInventory() async {
     final repo = ref.read(inventoryRepositoryProvider);
-    final data = await repo.getInventory();
+    final data = await repo.getOperationalInventoryForBranch(widget.branch);
 
     if (!mounted) return;
 
@@ -131,20 +136,31 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     saving = true;
     setState(() {});
 
+    var inventorySaved = false;
+    var imageSaveFailed = false;
+
     try {
-      await repo.saveInventory(
+      await repo.saveOperationalInventory(
+        branch: widget.branch,
+        employee: widget.employee,
         barcode: barcode,
         quantity: quantity!,
-        employeeId: widget.employee.id,
       );
+      inventorySaved = true;
 
       final pendingImageBytes = pendingProductImageBytes;
 
       if (pendingImageBytes != null) {
-        await repo.saveProductImageBytes(
-          barcode: barcode,
-          sourceBytes: pendingImageBytes,
-        );
+        try {
+          await repo.saveProductImageBytes(
+            barcode: barcode,
+            sourceBytes: pendingImageBytes,
+          );
+        } catch (error, stackTrace) {
+          imageSaveFailed = true;
+          debugPrint('Product image save failed after inventory save: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
       }
 
       barcodeController.clear();
@@ -155,15 +171,39 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       barcodeErrorText = null;
       quantityErrorText = null;
 
+      ref.invalidate(operationalInventoryProvider(widget.branch));
       await loadInventory();
 
       if (!mounted) return;
 
       barcodeFocusNode.requestFocus();
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(strings.savedSuccessfully)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            imageSaveFailed
+                ? strings.inventorySavedImageFailed
+                : strings.savedSuccessfully,
+          ),
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Could not save inventory: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            inventorySaved
+                ? strings.inventorySavedImageFailed
+                : strings.couldNotSaveInventory,
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -359,7 +399,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     );
   }
 
-  Future<void> _showEditInventoryDialog(InventoryCount item) async {
+  Future<void> _showEditInventoryDialog(InventoryCountModel item) async {
     final strings = ref.read(appStringsProvider);
     final repository = ref.read(inventoryRepositoryProvider);
 
@@ -377,6 +417,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
     if (saved == true && mounted) {
       await loadInventory();
+      ref.invalidate(operationalInventoryProvider(widget.branch));
 
       if (barcodeController.text.trim() == item.barcode) {
         await _loadProductImageForBarcode(item.barcode);
@@ -406,6 +447,22 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+    ref.listen<AsyncValue<List<InventoryCountModel>>>(
+      operationalInventoryProvider(widget.branch),
+      (previous, next) {
+        next.whenData((data) {
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            inventory = data;
+            loading = false;
+          });
+        });
+      },
+    );
+    ref.watch(operationalInventoryProvider(widget.branch));
 
     if (loading) {
       return AppFrame(child: LoadingView(message: strings.loadingInventory));
@@ -532,7 +589,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('${strings.quantity}: ${item.quantity}'),
-                            Text(item.countDate.toString().substring(0, 16)),
+                            Text(_formatInventoryTimestamp(item.countedAt)),
                           ],
                         ),
                       ),
@@ -563,7 +620,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                               final repo = ref.read(
                                 inventoryRepositoryProvider,
                               );
-                              await repo.deleteInventory(item.id);
+                              await repo.deleteOperationalInventoryRecord(
+                                item.id,
+                              );
+                              ref.invalidate(
+                                operationalInventoryProvider(widget.branch),
+                              );
                               await loadInventory();
                               if (barcodeController.text.trim() ==
                                   item.barcode) {
@@ -595,7 +657,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 enum _ProductImageAction { camera, gallery, delete, cancel }
 
 class _EditInventoryDialog extends StatefulWidget {
-  final InventoryCount item;
+  final InventoryCountModel item;
   final InventoryRepository repository;
   final AppStrings strings;
   final ImagePicker imagePicker;
@@ -854,29 +916,54 @@ class _EditInventoryDialogState extends State<_EditInventoryDialog> {
     });
 
     final quantity = int.parse(quantityController.text.trim());
+    var saved = false;
 
-    await widget.repository.updateInventoryRecord(
-      id: widget.item.id,
-      quantity: quantity,
-    );
+    try {
+      final imageBytes = pendingImageBytes;
 
-    final imageBytes = pendingImageBytes;
+      if (imageBytes != null) {
+        await widget.repository.saveProductImageBytes(
+          barcode: widget.item.barcode,
+          sourceBytes: imageBytes,
+        );
+      } else if (deleteImageRequested) {
+        await widget.repository.deleteProductImage(widget.item.barcode);
+      }
 
-    if (imageBytes != null) {
-      await widget.repository.saveProductImageBytes(
-        barcode: widget.item.barcode,
-        sourceBytes: imageBytes,
+      await widget.repository.updateOperationalInventoryRecord(
+        id: widget.item.id,
+        quantity: quantity,
       );
-    } else if (deleteImageRequested) {
-      await widget.repository.deleteProductImage(widget.item.barcode);
-    }
 
-    if (!mounted) {
-      return;
-    }
+      if (!mounted) {
+        return;
+      }
 
-    Navigator.of(context).pop(true);
+      saved = true;
+      Navigator.of(context).pop(true);
+    } catch (error, stackTrace) {
+      debugPrint('Could not save inventory edit: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(widget.strings.couldNotSaveInventory)),
+      );
+    } finally {
+      if (mounted && !saved) {
+        setState(() {
+          saving = false;
+        });
+      }
+    }
   }
+}
+
+String _formatInventoryTimestamp(DateTime value) {
+  return value.toLocal().toString().substring(0, 16);
 }
 
 class _InventoryProductImage extends ConsumerWidget {

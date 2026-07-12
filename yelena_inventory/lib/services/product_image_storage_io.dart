@@ -23,7 +23,7 @@ class ProductImageStorage {
     required String barcode,
     required Uint8List sourceBytes,
   }) async {
-    final encodedBytes = _compressedJpeg(sourceBytes);
+    final encodedBytes = compressedJpegBytes(sourceBytes);
     final directory = await _imagesDirectory();
     final safeBarcode = _safeFileName(barcode);
     final file = File(p.join(directory.path, '$safeBarcode.jpg'));
@@ -62,7 +62,7 @@ class ProductImageStorage {
     return imagesDirectory;
   }
 
-  Uint8List _compressedJpeg(Uint8List sourceBytes) {
+  Uint8List compressedJpegBytes(Uint8List sourceBytes) {
     final decoded = img.decodeImage(sourceBytes);
 
     if (decoded == null) {

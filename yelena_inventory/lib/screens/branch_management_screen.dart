@@ -262,7 +262,9 @@ class BranchManagementScreen extends ConsumerWidget {
     required int branchesCount,
   }) async {
     final repository = ref.read(inventoryRepositoryProvider);
-    final employeeCount = await repository.branchEmployeeCount(branch.id);
+    final employeeCount = await repository.branchEmployeeCountForManagement(
+      branch,
+    );
     final isLastBranch = branchesCount <= 1;
     final strings = ref.read(appStringsProvider);
 

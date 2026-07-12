@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import 'localization/app_language.dart';
+import 'providers/branch_provider.dart';
+import 'providers/employees_provider.dart';
+import 'providers/inventory_db_provider.dart';
 import 'screens/branch_selection_screen.dart';
 import 'services/in_app_update_service.dart';
 import 'services/supabase_service.dart';
@@ -24,6 +27,10 @@ class YelenaInventoryApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(branchRealtimeSubscriptionProvider);
+    ref.watch(employeeManagementRealtimeSubscriptionProvider);
+    ref.watch(operationalInventoryRealtimeSubscriptionProvider);
+
     final language = ref.watch(languageProvider);
 
     return MaterialApp(

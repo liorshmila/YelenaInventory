@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../database/app_database.dart';
 import '../localization/app_language.dart';
+import '../models/employee_model.dart';
+import '../providers/branch_provider.dart';
 import '../providers/employees_provider.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/app_frame.dart';
@@ -22,12 +23,27 @@ class EmployeeSelectionScreen extends ConsumerStatefulWidget {
 
 class _EmployeeSelectionScreenState
     extends ConsumerState<EmployeeSelectionScreen> {
-  Employee? selectedEmployee;
+  EmployeeModel? selectedEmployee;
 
   @override
   Widget build(BuildContext context) {
-    final employeesAsync = ref.watch(employeesProvider);
+    final selectedBranch = ref.watch(selectedBranchProvider);
     final strings = ref.watch(appStringsProvider);
+
+    if (selectedBranch == null) {
+      return AppFrame(
+        child: EmptyState(
+          icon: Icons.people_outline,
+          message:
+              '${strings.noEmployeesInBranch}\n${strings.addEmployeesFromSettings}',
+        ),
+      );
+    }
+
+    final branch = selectedBranch;
+    final employeesAsync = ref.watch(
+      employeeManagementEmployeesProvider(branch),
+    );
 
     return AppFrame(
       child: employeesAsync.when(
@@ -36,7 +52,7 @@ class _EmployeeSelectionScreenState
           message: strings.couldNotLoadEmployees,
           retryLabel: strings.retry,
           onRetry: () {
-            ref.invalidate(employeesProvider);
+            ref.invalidate(employeeManagementEmployeesProvider(branch));
           },
         ),
         data: (employees) {
@@ -58,7 +74,7 @@ class _EmployeeSelectionScreenState
               ),
               const SizedBox(height: 18),
               Expanded(
-                child: RadioGroup<Employee>(
+                child: RadioGroup<EmployeeModel>(
                   groupValue: selectedEmployee,
                   onChanged: (value) {
                     setState(() {
@@ -74,7 +90,7 @@ class _EmployeeSelectionScreenState
                           final employee = employees[index];
 
                           return AppListCard(
-                            child: RadioListTile<Employee>(
+                            child: RadioListTile<EmployeeModel>(
                               value: employee,
                               title: Text(
                                 employee.name,
@@ -99,8 +115,10 @@ class _EmployeeSelectionScreenState
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                ScanScreen(employee: selectedEmployee!),
+                            builder: (_) => ScanScreen(
+                              branch: branch,
+                              employee: selectedEmployee!,
+                            ),
                           ),
                         );
                       },

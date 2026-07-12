@@ -160,6 +160,11 @@ class AppStrings {
       isHebrew ? 'כמות היא שדה חובה.' : 'Quantity is required.';
   String get savedSuccessfully =>
       isHebrew ? 'נשמר בהצלחה.' : 'Saved successfully.';
+  String get couldNotSaveInventory =>
+      isHebrew ? 'לא ניתן היה לשמור את המלאי.' : 'Could not save inventory.';
+  String get inventorySavedImageFailed => isHebrew
+      ? 'המלאי נשמר, אך לא ניתן היה לשמור את תמונת המוצר.'
+      : 'Inventory was saved, but the product image could not be saved.';
   String get inventoryRecordDeleted =>
       isHebrew ? 'רשומת המלאי נמחקה.' : 'Inventory record deleted.';
   String get noInventoryItems =>

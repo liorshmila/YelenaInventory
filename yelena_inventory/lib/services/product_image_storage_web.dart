@@ -23,7 +23,7 @@ class ProductImageStorage {
     required String barcode,
     required Uint8List sourceBytes,
   }) async {
-    final encodedBytes = _compressedJpeg(sourceBytes);
+    final encodedBytes = compressedJpegBytes(sourceBytes);
     final storageKey = '$_keyPrefix${_safeKey(barcode)}';
 
     web.window.localStorage.setItem(storageKey, base64Encode(encodedBytes));
@@ -45,7 +45,7 @@ class ProductImageStorage {
     web.window.localStorage.removeItem(imagePath);
   }
 
-  Uint8List _compressedJpeg(Uint8List sourceBytes) {
+  Uint8List compressedJpegBytes(Uint8List sourceBytes) {
     final decoded = img.decodeImage(sourceBytes);
 
     if (decoded == null) {
