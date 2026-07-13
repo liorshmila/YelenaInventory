@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../localization/app_language.dart';
 import '../models/branch_model.dart';
 import '../providers/branch_provider.dart';
+import '../providers/global_loading_provider.dart';
 import '../providers/repository_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_frame.dart';
@@ -217,42 +218,46 @@ class BranchManagementScreen extends ConsumerWidget {
       return;
     }
 
-    final repository = ref.read(inventoryRepositoryProvider);
-    final name = controller.text.trim();
-    final exists = await repository.branchNameExists(
-      name,
-      excludeId: branch?.id,
+    await ref.read(globalLoadingProvider.notifier).runWithLoading<void>(
+      () async {
+        final repository = ref.read(inventoryRepositoryProvider);
+        final name = controller.text.trim();
+        final exists = await repository.branchNameExists(
+          name,
+          excludeId: branch?.id,
+        );
+
+        if (!context.mounted || !dialogContext.mounted) {
+          return;
+        }
+
+        if (exists) {
+          onDuplicateName();
+          return;
+        }
+
+        try {
+          if (branch == null) {
+            await repository.addBranch(name);
+          } else {
+            await repository.updateBranch(branch: branch, name: name);
+          }
+        } on StateError catch (error) {
+          if (error.message == 'Branch name already exists.') {
+            onDuplicateName();
+            return;
+          }
+
+          rethrow;
+        }
+
+        if (!context.mounted || !dialogContext.mounted) {
+          return;
+        }
+
+        Navigator.pop(dialogContext, true);
+      },
     );
-
-    if (!context.mounted || !dialogContext.mounted) {
-      return;
-    }
-
-    if (exists) {
-      onDuplicateName();
-      return;
-    }
-
-    try {
-      if (branch == null) {
-        await repository.addBranch(name);
-      } else {
-        await repository.updateBranch(branch: branch, name: name);
-      }
-    } on StateError catch (error) {
-      if (error.message == 'Branch name already exists.') {
-        onDuplicateName();
-        return;
-      }
-
-      rethrow;
-    }
-
-    if (!context.mounted || !dialogContext.mounted) {
-      return;
-    }
-
-    Navigator.pop(dialogContext, true);
   }
 
   Future<void> _confirmDeleteBranch({
@@ -262,9 +267,11 @@ class BranchManagementScreen extends ConsumerWidget {
     required int branchesCount,
   }) async {
     final repository = ref.read(inventoryRepositoryProvider);
-    final employeeCount = await repository.branchEmployeeCountForManagement(
-      branch,
-    );
+    final employeeCount = await ref
+        .read(globalLoadingProvider.notifier)
+        .runWithLoading<int>(
+          () => repository.branchEmployeeCountForManagement(branch),
+        );
     final isLastBranch = branchesCount <= 1;
     final strings = ref.read(appStringsProvider);
 
@@ -313,7 +320,9 @@ class BranchManagementScreen extends ConsumerWidget {
     }
 
     try {
-      await repository.deleteBranch(branch);
+      await ref
+          .read(globalLoadingProvider.notifier)
+          .runWithLoading<void>(() => repository.deleteBranch(branch));
 
       if (!context.mounted) {
         return;

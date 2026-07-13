@@ -7,6 +7,7 @@ import '../models/branch_model.dart';
 import '../models/employee_model.dart';
 import '../providers/branch_provider.dart';
 import '../providers/employees_provider.dart';
+import '../providers/global_loading_provider.dart';
 import '../providers/repository_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_frame.dart';
@@ -402,58 +403,62 @@ class _EmployeeManagementScreenState
       return;
     }
 
-    final repository = ref.read(inventoryRepositoryProvider);
-    final firstName = firstNameController.text.trim();
-    final lastName = lastNameController.text.trim();
-    final phone = phoneController.text.trim();
-    final fullName = '$firstName $lastName'.trim();
-    final managementExists = await repository
-        .employeeManagementNameExistsInBranch(
-          fullName: fullName,
-          branch: branch,
-          excludeEmployeeId: employee?.id,
-        );
+    await ref.read(globalLoadingProvider.notifier).runWithLoading<void>(
+      () async {
+        final repository = ref.read(inventoryRepositoryProvider);
+        final firstName = firstNameController.text.trim();
+        final lastName = lastNameController.text.trim();
+        final phone = phoneController.text.trim();
+        final fullName = '$firstName $lastName'.trim();
+        final managementExists = await repository
+            .employeeManagementNameExistsInBranch(
+              fullName: fullName,
+              branch: branch,
+              excludeEmployeeId: employee?.id,
+            );
 
-    if (!context.mounted || !dialogContext.mounted) {
-      return;
-    }
+        if (!context.mounted || !dialogContext.mounted) {
+          return;
+        }
 
-    if (managementExists) {
-      onDuplicateName();
-      return;
-    }
+        if (managementExists) {
+          onDuplicateName();
+          return;
+        }
 
-    try {
-      if (employee == null) {
-        await repository.addEmployeeForManagement(
-          firstName: firstName,
-          lastName: lastName,
-          phone: phone,
-          branch: branch,
-        );
-      } else {
-        await repository.updateEmployeeForManagement(
-          employee: employee,
-          firstName: firstName,
-          lastName: lastName,
-          phone: phone,
-          branch: branch,
-        );
-      }
-    } on StateError catch (error) {
-      if (error.message == 'Employee name already exists in this branch.') {
-        onDuplicateName();
-        return;
-      }
+        try {
+          if (employee == null) {
+            await repository.addEmployeeForManagement(
+              firstName: firstName,
+              lastName: lastName,
+              phone: phone,
+              branch: branch,
+            );
+          } else {
+            await repository.updateEmployeeForManagement(
+              employee: employee,
+              firstName: firstName,
+              lastName: lastName,
+              phone: phone,
+              branch: branch,
+            );
+          }
+        } on StateError catch (error) {
+          if (error.message == 'Employee name already exists in this branch.') {
+            onDuplicateName();
+            return;
+          }
 
-      rethrow;
-    }
+          rethrow;
+        }
 
-    if (!context.mounted || !dialogContext.mounted) {
-      return;
-    }
+        if (!context.mounted || !dialogContext.mounted) {
+          return;
+        }
 
-    Navigator.pop(dialogContext, true);
+        Navigator.pop(dialogContext, true);
+      },
+    );
   }
 
   Future<void> _confirmDeleteEmployee({
@@ -493,12 +498,17 @@ class _EmployeeManagementScreenState
     }
 
     try {
-      await ref
-          .read(inventoryRepositoryProvider)
-          .deactivateEmployeeForManagement(employee);
-      final refreshedEmployees = await ref.refresh(
-        employeeManagementEmployeesProvider(branch).future,
-      );
+      final refreshedEmployees = await ref
+          .read(globalLoadingProvider.notifier)
+          .runWithLoading<List<EmployeeModel>>(() async {
+            await ref
+                .read(inventoryRepositoryProvider)
+                .deactivateEmployeeForManagement(employee);
+
+            return ref.refresh(
+              employeeManagementEmployeesProvider(branch).future,
+            );
+          });
 
       if (refreshedEmployees.any((item) => item.id == employee.id)) {
         throw StateError('Employee still exists after deletion.');

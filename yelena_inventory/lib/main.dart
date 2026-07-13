@@ -10,6 +10,7 @@ import 'screens/branch_selection_screen.dart';
 import 'services/in_app_update_service.dart';
 import 'services/supabase_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/global_loading_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,7 +42,7 @@ class YelenaInventoryApp extends ConsumerWidget {
       builder: (context, child) {
         return Directionality(
           textDirection: language.textDirection,
-          child: child ?? const SizedBox.shrink(),
+          child: GlobalLoadingOverlay(child: child ?? const SizedBox.shrink()),
         );
       },
       home: const InAppUpdateGate(child: BranchSelectionScreen()),

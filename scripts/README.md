@@ -22,9 +22,12 @@ $env:SUPABASE_URL = "https://your-project.supabase.co"
 $env:SUPABASE_PUBLISHABLE_KEY = "your-supabase-publishable-key"
 ```
 
-Run the repeatable release script from the repository root:
+All release commands must be run from the repository root.
+
+Example:
 
 ```powershell
+cd C:\Dev\YelenaInventory
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 & .\scripts\build_android_release.ps1
 ```
