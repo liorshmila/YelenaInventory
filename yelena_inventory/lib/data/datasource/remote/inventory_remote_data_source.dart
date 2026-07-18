@@ -1,16 +1,26 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../models/add_role_assignment_result.dart';
+import '../../../models/create_employee_result.dart';
+import '../../../models/deactivate_employee_result.dart';
+import '../../../models/end_role_assignment_result.dart';
+import '../../../models/replace_role_assignment_result.dart';
+import '../../../models/role_assignment_model.dart';
+import '../../../models/role_model.dart';
+
 class RemoteBranch {
   final String id;
   final String branchCode;
   final String name;
+  final String? areaId;
   final bool isActive;
 
   const RemoteBranch({
     required this.id,
     required this.branchCode,
     required this.name,
+    this.areaId,
     this.isActive = true,
   });
 
@@ -19,6 +29,7 @@ class RemoteBranch {
       id: json['id'] as String,
       branchCode: json['branch_code'] as String,
       name: json['name'] as String,
+      areaId: json['area_id'] as String?,
       isActive: json['is_active'] as bool? ?? true,
     );
   }
@@ -29,32 +40,42 @@ class RemoteEmployee {
   final String employeeCode;
   final String name;
   final String phone;
+  final String? authUserId;
   final bool isActive;
-  final String branchId;
-  final String membershipId;
 
   const RemoteEmployee({
     required this.id,
     required this.employeeCode,
     required this.name,
     required this.phone,
+    this.authUserId,
     required this.isActive,
-    required this.branchId,
-    required this.membershipId,
   });
 
-  factory RemoteEmployee.fromMembershipJson(Map<String, dynamic> json) {
-    final employee = json['employees'] as Map<String, dynamic>;
-
+  factory RemoteEmployee.fromJson(Map<String, dynamic> json) {
     return RemoteEmployee(
-      id: employee['id'] as String,
-      employeeCode: employee['employee_code'] as String,
-      name: employee['name'] as String,
-      phone: employee['phone'] as String,
-      isActive: employee['is_active'] as bool? ?? true,
-      branchId: json['branch_id'] as String,
-      membershipId: json['id'] as String,
+      id: json['id'] as String,
+      employeeCode: json['employee_code'] as String,
+      name: json['name'] as String,
+      phone: json['phone'] as String,
+      authUserId: json['auth_user_id'] as String?,
+      isActive: json['is_active'] as bool? ?? true,
     );
+  }
+
+  factory RemoteEmployee.fromAssignmentJson(Map<String, dynamic> json) {
+    return RemoteEmployee.fromJson(json['employees'] as Map<String, dynamic>);
+  }
+}
+
+class RemoteArea {
+  final String id;
+  final String name;
+
+  const RemoteArea({required this.id, required this.name});
+
+  factory RemoteArea.fromJson(Map<String, dynamic> json) {
+    return RemoteArea(id: json['id'] as String, name: json['name'] as String);
   }
 }
 
@@ -150,6 +171,71 @@ abstract interface class InventoryRemoteDataSource {
     bool includeInactiveMemberships = false,
   });
 
+  Future<List<RemoteEmployee>> getCompanyEmployees();
+
+  Future<RemoteEmployee?> getEmployeeByAuthUserId(String authUserId);
+
+  Future<List<RoleAssignmentModel>> getEffectiveRoleAssignmentsForEmployee({
+    required String employeeId,
+    DateTime? evaluationTimeUtc,
+  });
+
+  Future<List<RoleAssignmentModel>> getEffectiveRoleAssignmentsForEmployees({
+    required Set<String> employeeIds,
+    DateTime? evaluationTimeUtc,
+  });
+
+  Future<List<RoleAssignmentModel>> getRoleAssignmentsForEmployees({
+    required Set<String> employeeIds,
+  });
+
+  Future<List<RemoteBranch>> getBranchesByIds(Set<String> branchIds);
+
+  Future<List<RemoteBranch>> getActiveBranchesByIds(Set<String> branchIds);
+
+  Future<List<RemoteBranch>> getActiveBranchesForAreaIds(Set<String> areaIds);
+
+  Future<List<RemoteArea>> getAreasByIds(Set<String> areaIds);
+
+  Future<List<RemoteArea>> getActiveAreasByIds(Set<String> areaIds);
+
+  Future<List<RemoteArea>> getActiveAreas();
+
+  Future<CreateEmployeeResult> createEmployeeWithFirstRoleAssignment({
+    required String name,
+    required String phone,
+    required String roleCode,
+    String? areaId,
+    String? branchId,
+    DateTime? validFrom,
+    DateTime? validUntil,
+  });
+
+  Future<AddRoleAssignmentResult> addEmployeeRoleAssignment({
+    required String targetEmployeeId,
+    required String roleCode,
+    String? areaId,
+    String? branchId,
+    DateTime? validFrom,
+    DateTime? validUntil,
+  });
+
+  Future<EndRoleAssignmentResult> endEmployeeRoleAssignment({
+    required String roleAssignmentId,
+  });
+
+  Future<ReplaceRoleAssignmentResult> replaceEmployeeRoleAssignment({
+    required String roleAssignmentId,
+    required String roleCode,
+    String? areaId,
+    String? branchId,
+    DateTime? validUntil,
+  });
+
+  Future<DeactivateEmployeeResult> deactivateEmployeeForManagement({
+    required String targetEmployeeId,
+  });
+
   Future<RemoteEmployee> createEmployee({
     required String name,
     required String phone,
@@ -220,9 +306,10 @@ abstract interface class InventoryRemoteDataSource {
 
   Future<void> deleteInventoryCount(String id);
 
-  Future<bool> employeeHasActiveBranchMembership({
+  Future<bool> employeeHasEffectiveBranchAccess({
     required String employeeId,
     required String branchId,
+    DateTime? evaluationTimeUtc,
   });
 }
 
@@ -236,7 +323,7 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
   Future<List<RemoteBranch>> getActiveBranches() async {
     final rows = await _client
         .from('branches')
-        .select('id, branch_code, name')
+        .select('id, branch_code, name, area_id')
         .eq('is_active', true)
         .order('name');
 
@@ -329,26 +416,31 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
     bool includeInactiveEmployees = false,
     bool includeInactiveMemberships = false,
   }) async {
+    final evaluationIso = DateTime.now().toUtc().toIso8601String();
     var query = _client
-        .from('employee_branches')
+        .from('role_assignments')
         .select(
           'id, branch_id, is_active, '
-          'employees!inner(id, employee_code, name, phone, is_active)',
+          'employees!inner(id, employee_code, name, phone, auth_user_id, is_active)',
         )
-        .eq('branch_id', branchId);
-
-    if (!includeInactiveMemberships) {
-      query = query.eq('is_active', true);
-    }
+        .eq('branch_id', branchId)
+        .eq('is_active', true)
+        .or('valid_from.is.null,valid_from.lte.$evaluationIso')
+        .or('valid_until.is.null,valid_until.gte.$evaluationIso');
 
     if (!includeInactiveEmployees) {
       query = query.eq('employees.is_active', true);
     }
 
     final rows = await query;
-    final employees = rows
-        .map(RemoteEmployee.fromMembershipJson)
-        .toList(growable: false);
+    final employeesById = <String, RemoteEmployee>{};
+
+    for (final row in rows) {
+      final employee = RemoteEmployee.fromAssignmentJson(row);
+      employeesById[employee.id] = employee;
+    }
+
+    final employees = employeesById.values.toList(growable: false);
 
     return [...employees]..sort(
       (first, second) =>
@@ -357,71 +449,308 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
   }
 
   @override
+  Future<List<RemoteEmployee>> getCompanyEmployees() async {
+    final rows = await _client
+        .from('employees')
+        .select('id, employee_code, name, phone, auth_user_id, is_active')
+        .eq('is_active', true)
+        .order('employee_code')
+        .order('name');
+
+    return rows.map(RemoteEmployee.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<RemoteEmployee?> getEmployeeByAuthUserId(String authUserId) async {
+    final rows = await _client
+        .from('employees')
+        .select('id, employee_code, name, phone, auth_user_id, is_active')
+        .eq('auth_user_id', authUserId)
+        .limit(1);
+
+    if (rows.isEmpty) {
+      return null;
+    }
+
+    return RemoteEmployee.fromJson(rows.first);
+  }
+
+  @override
+  Future<List<RoleAssignmentModel>> getEffectiveRoleAssignmentsForEmployee({
+    required String employeeId,
+    DateTime? evaluationTimeUtc,
+  }) async {
+    final evaluationTime = (evaluationTimeUtc ?? DateTime.now()).toUtc();
+    final evaluationIso = evaluationTime.toIso8601String();
+
+    var query = _client
+        .from('role_assignments')
+        .select(
+          'id, employee_id, area_id, branch_id, valid_from, valid_until, '
+          'is_active, created_at, updated_at, roles!inner(code)',
+        )
+        .eq('employee_id', employeeId)
+        .eq('is_active', true)
+        .or('valid_from.is.null,valid_from.lte.$evaluationIso')
+        .or('valid_until.is.null,valid_until.gte.$evaluationIso')
+        .order('created_at')
+        .order('id');
+
+    final rows = await query;
+
+    return rows.map(_roleAssignmentFromJson).toList(growable: false);
+  }
+
+  @override
+  Future<List<RoleAssignmentModel>> getEffectiveRoleAssignmentsForEmployees({
+    required Set<String> employeeIds,
+    DateTime? evaluationTimeUtc,
+  }) async {
+    if (employeeIds.isEmpty) {
+      return const [];
+    }
+
+    final evaluationTime = (evaluationTimeUtc ?? DateTime.now()).toUtc();
+    final evaluationIso = evaluationTime.toIso8601String();
+
+    final rows = await _client
+        .from('role_assignments')
+        .select(
+          'id, employee_id, area_id, branch_id, valid_from, valid_until, '
+          'is_active, created_at, updated_at, roles!inner(code)',
+        )
+        .inFilter('employee_id', employeeIds.toList()..sort())
+        .eq('is_active', true)
+        .or('valid_from.is.null,valid_from.lte.$evaluationIso')
+        .or('valid_until.is.null,valid_until.gte.$evaluationIso')
+        .order('employee_id')
+        .order('created_at')
+        .order('id');
+
+    return rows.map(_roleAssignmentFromJson).toList(growable: false);
+  }
+
+  @override
+  Future<List<RoleAssignmentModel>> getRoleAssignmentsForEmployees({
+    required Set<String> employeeIds,
+  }) async {
+    if (employeeIds.isEmpty) {
+      return const [];
+    }
+
+    final rows = await _client
+        .from('role_assignments')
+        .select(
+          'id, employee_id, area_id, branch_id, valid_from, valid_until, '
+          'is_active, created_at, updated_at, roles!inner(code)',
+        )
+        .inFilter('employee_id', employeeIds.toList()..sort())
+        .order('employee_id')
+        .order('created_at')
+        .order('id');
+
+    return rows.map(_roleAssignmentFromJson).toList(growable: false);
+  }
+
+  @override
+  Future<List<RemoteBranch>> getBranchesByIds(Set<String> branchIds) async {
+    if (branchIds.isEmpty) {
+      return const [];
+    }
+
+    final rows = await _client
+        .from('branches')
+        .select('id, branch_code, name, area_id, is_active')
+        .inFilter('id', branchIds.toList()..sort())
+        .order('name');
+
+    return rows.map(RemoteBranch.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<List<RemoteBranch>> getActiveBranchesByIds(
+    Set<String> branchIds,
+  ) async {
+    if (branchIds.isEmpty) {
+      return const [];
+    }
+
+    final rows = await _client
+        .from('branches')
+        .select('id, branch_code, name, area_id')
+        .inFilter('id', branchIds.toList()..sort())
+        .eq('is_active', true)
+        .order('name');
+
+    return rows.map(RemoteBranch.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<List<RemoteBranch>> getActiveBranchesForAreaIds(
+    Set<String> areaIds,
+  ) async {
+    if (areaIds.isEmpty) {
+      return const [];
+    }
+
+    final rows = await _client
+        .from('branches')
+        .select('id, branch_code, name, area_id')
+        .inFilter('area_id', areaIds.toList()..sort())
+        .eq('is_active', true)
+        .order('name');
+
+    return rows.map(RemoteBranch.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<List<RemoteArea>> getAreasByIds(Set<String> areaIds) async {
+    if (areaIds.isEmpty) {
+      return const [];
+    }
+
+    final rows = await _client
+        .from('areas')
+        .select('id, name, is_active')
+        .inFilter('id', areaIds.toList()..sort())
+        .order('name');
+
+    return rows.map(RemoteArea.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<List<RemoteArea>> getActiveAreasByIds(Set<String> areaIds) async {
+    if (areaIds.isEmpty) {
+      return const [];
+    }
+
+    final rows = await _client
+        .from('areas')
+        .select('id, name')
+        .inFilter('id', areaIds.toList()..sort())
+        .eq('is_active', true)
+        .order('name');
+
+    return rows.map(RemoteArea.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<List<RemoteArea>> getActiveAreas() async {
+    final rows = await _client
+        .from('areas')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+
+    return rows.map(RemoteArea.fromJson).toList(growable: false);
+  }
+
+  @override
+  Future<CreateEmployeeResult> createEmployeeWithFirstRoleAssignment({
+    required String name,
+    required String phone,
+    required String roleCode,
+    String? areaId,
+    String? branchId,
+    DateTime? validFrom,
+    DateTime? validUntil,
+  }) async {
+    final result = await _client.rpc(
+      'create_employee_with_first_role_assignment',
+      params: {
+        'p_name': name.trim(),
+        'p_phone': phone.trim(),
+        'p_role_code': roleCode.trim(),
+        'p_area_id': areaId,
+        'p_branch_id': branchId,
+        'p_valid_from': validFrom?.toUtc().toIso8601String(),
+        'p_valid_until': validUntil?.toUtc().toIso8601String(),
+      },
+    );
+
+    return CreateEmployeeResult.parse(result as String);
+  }
+
+  @override
+  Future<AddRoleAssignmentResult> addEmployeeRoleAssignment({
+    required String targetEmployeeId,
+    required String roleCode,
+    String? areaId,
+    String? branchId,
+    DateTime? validFrom,
+    DateTime? validUntil,
+  }) async {
+    final result = await _client.rpc(
+      'add_employee_role_assignment',
+      params: {
+        'p_target_employee_id': targetEmployeeId.trim(),
+        'p_role_code': roleCode.trim(),
+        'p_area_id': areaId,
+        'p_branch_id': branchId,
+        'p_valid_from': validFrom?.toUtc().toIso8601String(),
+        'p_valid_until': validUntil?.toUtc().toIso8601String(),
+      },
+    );
+
+    return AddRoleAssignmentResult.parse(result as String);
+  }
+
+  @override
+  Future<EndRoleAssignmentResult> endEmployeeRoleAssignment({
+    required String roleAssignmentId,
+  }) async {
+    final result = await _client.rpc(
+      'end_employee_role_assignment',
+      params: {'p_role_assignment_id': roleAssignmentId.trim()},
+    );
+
+    return EndRoleAssignmentResult.parse(result as String);
+  }
+
+  @override
+  Future<ReplaceRoleAssignmentResult> replaceEmployeeRoleAssignment({
+    required String roleAssignmentId,
+    required String roleCode,
+    String? areaId,
+    String? branchId,
+    DateTime? validUntil,
+  }) async {
+    final result = await _client.rpc(
+      'replace_employee_role_assignment',
+      params: {
+        'p_role_assignment_id': roleAssignmentId.trim(),
+        'p_role_code': roleCode.trim(),
+        'p_area_id': areaId,
+        'p_branch_id': branchId,
+        'p_valid_until': validUntil?.toUtc().toIso8601String(),
+      },
+    );
+
+    return ReplaceRoleAssignmentResult.parse(result as String);
+  }
+
+  @override
+  Future<DeactivateEmployeeResult> deactivateEmployeeForManagement({
+    required String targetEmployeeId,
+  }) async {
+    final result = await _client.rpc(
+      'deactivate_employee',
+      params: {'p_target_employee_id': targetEmployeeId.trim()},
+    );
+
+    return DeactivateEmployeeResult.parse(result as String);
+  }
+
+  @override
   Future<RemoteEmployee> createEmployee({
     required String name,
     required String phone,
     required String branchId,
   }) async {
-    const maxAttempts = 3;
-    final employeeName = name.trim();
-    final employeePhone = phone.trim();
-
-    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
-      final employeeCode = _nextEmployeeCode(await _fetchEmployeeCodes());
-
-      try {
-        final employeeRow = await _client
-            .from('employees')
-            .insert({
-              'employee_code': employeeCode,
-              'name': employeeName,
-              'phone': employeePhone,
-              'is_active': true,
-            })
-            .select('id, employee_code, name, phone, is_active')
-            .single();
-
-        final employeeId = employeeRow['id'] as String;
-
-        try {
-          final membershipRow = await _client
-              .from('employee_branches')
-              .insert({
-                'employee_id': employeeId,
-                'branch_id': branchId,
-                'is_active': true,
-              })
-              .select('id, branch_id')
-              .single();
-
-          return RemoteEmployee(
-            id: employeeId,
-            employeeCode: employeeRow['employee_code'] as String,
-            name: employeeRow['name'] as String,
-            phone: employeeRow['phone'] as String,
-            isActive: employeeRow['is_active'] as bool? ?? true,
-            branchId: membershipRow['branch_id'] as String,
-            membershipId: membershipRow['id'] as String,
-          );
-        } catch (_) {
-          await _safeDeactivateEmployee(employeeId);
-          rethrow;
-        }
-      } on PostgrestException catch (error) {
-        final shouldRetry =
-            attempt < maxAttempts && _isEmployeeCodeUniqueConflict(error);
-
-        if (!shouldRetry) {
-          if (_isEmployeeCodeUniqueConflict(error)) {
-            throw StateError('Could not create a unique employee code.');
-          }
-
-          rethrow;
-        }
-      }
-    }
-
-    throw StateError('Could not create a unique employee code.');
+    throw UnsupportedError(
+      'Employee management is moving to role_assignments and is not available '
+      'through employee_branches.',
+    );
   }
 
   @override
@@ -445,32 +774,8 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
     required String phone,
     required String branchId,
   }) async {
-    final employeeRow = await _client
-        .from('employees')
-        .update({'name': name.trim(), 'phone': phone.trim(), 'is_active': true})
-        .eq('id', employee.id)
-        .select('id, employee_code, name, phone, is_active')
-        .single();
-
-    final membershipId = await _activateEmployeeMembership(
-      employeeId: employee.id,
-      branchId: branchId,
-      fallbackMembershipId: employee.membershipId,
-    );
-
-    await _deactivateOtherEmployeeMemberships(
-      employeeId: employee.id,
-      activeBranchId: branchId,
-    );
-
-    return RemoteEmployee(
-      id: employeeRow['id'] as String,
-      employeeCode: employeeRow['employee_code'] as String,
-      name: employeeRow['name'] as String,
-      phone: employeeRow['phone'] as String,
-      isActive: employeeRow['is_active'] as bool? ?? true,
-      branchId: branchId,
-      membershipId: membershipId,
+    throw UnsupportedError(
+      'Employee reactivation must be implemented through role_assignments.',
     );
   }
 
@@ -480,51 +785,32 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
     required String oldMembershipId,
     required String newBranchId,
   }) async {
-    final membershipId = await _activateEmployeeMembership(
-      employeeId: employeeId,
-      branchId: newBranchId,
+    throw UnsupportedError(
+      'Branch assignment must be implemented through role_assignments.',
     );
-
-    await _deactivateOtherEmployeeMemberships(
-      employeeId: employeeId,
-      activeBranchId: newBranchId,
-    );
-
-    if (oldMembershipId != membershipId) {
-      await _client
-          .from('employee_branches')
-          .update({'is_active': false})
-          .eq('id', oldMembershipId)
-          .select('id')
-          .single();
-    }
   }
 
   @override
   Future<void> deactivateEmployee({required String employeeId}) async {
-    await _client
-        .from('employees')
-        .update({'is_active': false})
-        .eq('id', employeeId)
-        .select('id')
-        .single();
-
-    await _client
-        .from('employee_branches')
-        .update({'is_active': false})
-        .eq('employee_id', employeeId);
+    throw UnsupportedError(
+      'Employee deactivation must be rebuilt for the role_assignments model.',
+    );
   }
 
   @override
   Future<int> countActiveEmployeesForBranch(String branchId) async {
     final rows = await _client
-        .from('employee_branches')
-        .select('id, employees!inner(id, is_active)')
+        .from('role_assignments')
+        .select('employee_id, employees!inner(id, is_active)')
         .eq('branch_id', branchId)
         .eq('is_active', true)
         .eq('employees.is_active', true);
 
-    return rows.length;
+    return rows
+        .map((row) => row['employee_id'])
+        .whereType<String>()
+        .toSet()
+        .length;
   }
 
   @override
@@ -728,17 +1014,41 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
   }
 
   @override
-  Future<bool> employeeHasActiveBranchMembership({
+  Future<bool> employeeHasEffectiveBranchAccess({
     required String employeeId,
     required String branchId,
+    DateTime? evaluationTimeUtc,
   }) async {
+    final assignments = await getEffectiveRoleAssignmentsForEmployee(
+      employeeId: employeeId,
+      evaluationTimeUtc: evaluationTimeUtc,
+    );
+
+    if (assignments.any(
+      (assignment) =>
+          assignment.role.role == RoleCode.developer ||
+          assignment.role.role == RoleCode.systemManager ||
+          assignment.branchId == branchId,
+    )) {
+      return true;
+    }
+
+    final areaIds = assignments
+        .where((assignment) => assignment.role.role == RoleCode.areaManager)
+        .map((assignment) => assignment.areaId)
+        .whereType<String>()
+        .toSet();
+
+    if (areaIds.isEmpty) {
+      return false;
+    }
+
     final rows = await _client
-        .from('employee_branches')
-        .select('id, employees!inner(id, is_active)')
-        .eq('employee_id', employeeId)
-        .eq('branch_id', branchId)
+        .from('branches')
+        .select('id')
+        .eq('id', branchId)
         .eq('is_active', true)
-        .eq('employees.is_active', true)
+        .inFilter('area_id', areaIds.toList())
         .limit(1);
 
     return rows.isNotEmpty;
@@ -814,43 +1124,6 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
     return _isUniqueConflictForColumn(error, 'name');
   }
 
-  Future<List<String>> _fetchEmployeeCodes() async {
-    final rows = await _client.from('employees').select('employee_code');
-
-    return rows
-        .map((row) => row['employee_code'])
-        .whereType<String>()
-        .toList(growable: false);
-  }
-
-  String _nextEmployeeCode(List<String> existingCodes) {
-    final pattern = RegExp(r'^EMP-(\d+)$');
-    var highest = 0;
-
-    for (final code in existingCodes) {
-      final match = pattern.firstMatch(code.trim());
-
-      if (match == null) {
-        continue;
-      }
-
-      final suffix = int.tryParse(match.group(1)!);
-
-      if (suffix != null && suffix > highest) {
-        highest = suffix;
-      }
-    }
-
-    final next = highest + 1;
-    final padded = next.toString().padLeft(4, '0');
-
-    return 'EMP-$padded';
-  }
-
-  bool _isEmployeeCodeUniqueConflict(PostgrestException error) {
-    return _isUniqueConflictForColumn(error, 'employee_code');
-  }
-
   bool isProductBarcodeUniqueConflict(PostgrestException error) {
     return _isUniqueConflictForColumn(error, 'barcode');
   }
@@ -878,73 +1151,28 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
     return '$productId.jpg';
   }
 
-  Future<String> _activateEmployeeMembership({
-    required String employeeId,
-    required String branchId,
-    String? fallbackMembershipId,
-  }) async {
-    final existingRows = await _client
-        .from('employee_branches')
-        .select('id')
-        .eq('employee_id', employeeId)
-        .eq('branch_id', branchId)
-        .limit(1);
+  RoleAssignmentModel _roleAssignmentFromJson(Map<String, dynamic> json) {
+    final roleJson = json['roles'] as Map<String, dynamic>;
 
-    if (existingRows.isNotEmpty) {
-      final membershipId = existingRows.first['id'] as String;
-      await _client
-          .from('employee_branches')
-          .update({'is_active': true})
-          .eq('id', membershipId)
-          .select('id')
-          .single();
-
-      return membershipId;
-    }
-
-    if (fallbackMembershipId != null && fallbackMembershipId.isNotEmpty) {
-      await _client
-          .from('employee_branches')
-          .update({'is_active': true, 'branch_id': branchId})
-          .eq('id', fallbackMembershipId)
-          .select('id')
-          .single();
-
-      return fallbackMembershipId;
-    }
-
-    final row = await _client
-        .from('employee_branches')
-        .insert({
-          'employee_id': employeeId,
-          'branch_id': branchId,
-          'is_active': true,
-        })
-        .select('id')
-        .single();
-
-    return row['id'] as String;
+    return RoleAssignmentModel(
+      id: json['id'] as String,
+      employeeId: json['employee_id'] as String,
+      role: RoleModel.fromCode(roleJson['code'] as String),
+      areaId: json['area_id'] as String?,
+      branchId: json['branch_id'] as String?,
+      validFrom: _parseNullableDateTime(json['valid_from']),
+      validUntil: _parseNullableDateTime(json['valid_until']),
+      isActive: json['is_active'] as bool? ?? true,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+    );
   }
 
-  Future<void> _deactivateOtherEmployeeMemberships({
-    required String employeeId,
-    required String activeBranchId,
-  }) async {
-    await _client
-        .from('employee_branches')
-        .update({'is_active': false})
-        .eq('employee_id', employeeId)
-        .neq('branch_id', activeBranchId);
-  }
-
-  Future<void> _safeDeactivateEmployee(String employeeId) async {
-    try {
-      await _client
-          .from('employees')
-          .update({'is_active': false})
-          .eq('id', employeeId);
-    } catch (_) {
-      // The original membership failure is more important to preserve.
+  DateTime? _parseNullableDateTime(Object? value) {
+    if (value == null) {
+      return null;
     }
+
+    return DateTime.parse(value as String);
   }
 }

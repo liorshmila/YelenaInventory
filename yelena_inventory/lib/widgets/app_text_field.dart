@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppTextField extends StatelessWidget {
   final TextEditingController controller;
@@ -8,6 +9,8 @@ class AppTextField extends StatelessWidget {
   final Widget? suffixIcon;
   final FocusNode? focusNode;
   final String? errorText;
+  final String? hintText;
+  final List<TextInputFormatter>? inputFormatters;
 
   const AppTextField({
     super.key,
@@ -18,6 +21,8 @@ class AppTextField extends StatelessWidget {
     this.suffixIcon,
     this.focusNode,
     this.errorText,
+    this.hintText,
+    this.inputFormatters,
   });
 
   @override
@@ -26,11 +31,13 @@ class AppTextField extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
         suffixIcon: suffixIcon,
         errorText: errorText,
+        hintText: hintText,
       ),
     );
   }

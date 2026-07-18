@@ -3,17 +3,15 @@ class EmployeeModel {
   final String employeeCode;
   final String name;
   final String phone;
+  final String? authUserId;
   final bool isActive;
-  final String branchId;
-  final String membershipId;
 
   const EmployeeModel({
     required this.id,
     required this.employeeCode,
     required this.name,
     required this.phone,
+    this.authUserId,
     required this.isActive,
-    required this.branchId,
-    required this.membershipId,
   });
 }

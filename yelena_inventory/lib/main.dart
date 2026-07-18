@@ -6,10 +6,10 @@ import 'localization/app_language.dart';
 import 'providers/branch_provider.dart';
 import 'providers/employees_provider.dart';
 import 'providers/inventory_db_provider.dart';
-import 'screens/branch_selection_screen.dart';
 import 'services/in_app_update_service.dart';
 import 'services/supabase_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/auth_session_gate.dart';
 import 'widgets/global_loading_overlay.dart';
 
 Future<void> main() async {
@@ -45,7 +45,7 @@ class YelenaInventoryApp extends ConsumerWidget {
           child: GlobalLoadingOverlay(child: child ?? const SizedBox.shrink()),
         );
       },
-      home: const InAppUpdateGate(child: BranchSelectionScreen()),
+      home: const InAppUpdateGate(child: AuthSessionGate()),
     );
   }
 }

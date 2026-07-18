@@ -38,8 +38,22 @@ final employeeManagementEmployeesProvider =
       branch,
     ) async {
       final repo = ref.watch(inventoryRepositoryProvider);
+      final remoteBranchId = branch.remoteId;
 
-      return repo.getEmployeeManagementEmployeesForBranch(branch);
+      if (remoteBranchId == null || remoteBranchId.trim().isEmpty) {
+        return const [];
+      }
+
+      final directory = await repo.getEmployeeDirectory();
+
+      return directory
+          .where(
+            (entry) => entry.accessibleBranches.any(
+              (accessibleBranch) => accessibleBranch.remoteId == remoteBranchId,
+            ),
+          )
+          .map((entry) => entry.employee)
+          .toList(growable: false);
     });
 
 final employeeManagementRealtimeSubscriptionProvider = Provider<void>((ref) {
@@ -52,17 +66,8 @@ final employeeManagementRealtimeSubscriptionProvider = Provider<void>((ref) {
       ref.invalidate(employeeManagementEmployeesProvider);
     },
   );
-  final membershipSubscription = realtimeService.subscribeToTableChanges(
-    channelName: 'public:employee_branches',
-    schema: 'public',
-    table: 'employee_branches',
-    onChange: () {
-      ref.invalidate(employeeManagementEmployeesProvider);
-    },
-  );
 
   ref.onDispose(() {
     unawaited(employeeSubscription.cancel());
-    unawaited(membershipSubscription.cancel());
   });
 });

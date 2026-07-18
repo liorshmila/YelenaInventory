@@ -25,30 +25,21 @@ class ProductCount {
       'countDate': countDate.toIso8601String(),
       'note': note,
       'updatedToScanner': updatedToScanner,
-      'scannerUpdateDate':
-          scannerUpdateDate?.toIso8601String(),
+      'scannerUpdateDate': scannerUpdateDate?.toIso8601String(),
     };
   }
 
-  factory ProductCount.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory ProductCount.fromJson(Map<String, dynamic> json) {
     return ProductCount(
       barcode: json['barcode'],
       quantity: json['quantity'],
       employeeName: json['employeeName'],
-      countDate: DateTime.parse(
-        json['countDate'],
-      ),
+      countDate: DateTime.parse(json['countDate']),
       note: json['note'] ?? '',
-      updatedToScanner:
-          json['updatedToScanner'] ?? false,
-      scannerUpdateDate:
-          json['scannerUpdateDate'] == null
-              ? null
-              : DateTime.parse(
-                  json['scannerUpdateDate'],
-                ),
+      updatedToScanner: json['updatedToScanner'] ?? false,
+      scannerUpdateDate: json['scannerUpdateDate'] == null
+          ? null
+          : DateTime.parse(json['scannerUpdateDate']),
     );
   }
 }

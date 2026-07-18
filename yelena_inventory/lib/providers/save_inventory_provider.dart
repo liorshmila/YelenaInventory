@@ -4,14 +4,8 @@ import 'inventory_db_provider.dart';
 import 'repository_provider.dart';
 
 final saveInventoryProvider = Provider((ref) {
-  return (
-    String barcode,
-    int quantity,
-    int employeeId,
-  ) async {
-    final repo = ref.read(
-      inventoryRepositoryProvider,
-    );
+  return (String barcode, int quantity, int employeeId) async {
+    final repo = ref.read(inventoryRepositoryProvider);
 
     await repo.saveInventory(
       barcode: barcode,
@@ -19,8 +13,6 @@ final saveInventoryProvider = Provider((ref) {
       employeeId: employeeId,
     );
 
-    ref.invalidate(
-      inventoryDbProvider,
-    );
+    ref.invalidate(inventoryDbProvider);
   };
 });

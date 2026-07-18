@@ -114,12 +114,7 @@ class _EmployeeSelectionScreenState
                     : () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) => ScanScreen(
-                              branch: branch,
-                              employee: selectedEmployee!,
-                            ),
-                          ),
+                          MaterialPageRoute(builder: (_) => const ScanScreen()),
                         );
                       },
               ),

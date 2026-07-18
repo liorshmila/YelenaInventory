@@ -7,10 +7,24 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/datasource/local/inventory_local_data_source.dart';
 import '../data/datasource/remote/inventory_remote_data_source.dart';
 import '../database/app_database.dart';
+import '../models/add_role_assignment_request.dart';
+import '../models/add_role_assignment_result.dart';
+import '../models/area_model.dart';
 import '../models/branch_model.dart';
+import '../models/create_employee_request.dart';
+import '../models/create_employee_result.dart';
+import '../models/deactivate_employee_request.dart';
+import '../models/deactivate_employee_result.dart';
+import '../models/end_role_assignment_request.dart';
+import '../models/end_role_assignment_result.dart';
+import '../models/employee_directory_entry_model.dart';
 import '../models/employee_model.dart';
 import '../models/inventory_count_model.dart';
 import '../models/product_model.dart';
+import '../models/replace_role_assignment_request.dart';
+import '../models/replace_role_assignment_result.dart';
+import '../models/role_assignment_model.dart';
+import '../models/role_model.dart';
 import '../services/product_image_storage.dart';
 import 'audit_repository.dart';
 
@@ -235,6 +249,372 @@ class InventoryRepository {
     return employees.map(_mapRemoteEmployee).toList(growable: false);
   }
 
+  Future<List<EmployeeModel>> getCompanyEmployees() async {
+    final employees = await remoteDataSource.getCompanyEmployees();
+
+    return employees.map(_mapRemoteEmployee).toList(growable: false);
+  }
+
+  Future<List<AreaModel>> getActiveAreas() async {
+    final areas = await remoteDataSource.getActiveAreas();
+
+    return areas
+        .map((area) => AreaModel(id: area.id, name: area.name))
+        .toList(growable: false);
+  }
+
+  Future<List<EmployeeDirectoryEntryModel>> getEmployeeDirectory() async {
+    final employees = await getCompanyEmployees();
+    final employeeIds = employees.map((employee) => employee.id).toSet();
+    final now = DateTime.now().toUtc();
+    final assignments = await remoteDataSource.getRoleAssignmentsForEmployees(
+      employeeIds: employeeIds,
+    );
+    final effectiveAssignments = assignments
+        .where((assignment) => assignment.isEffectiveAt(now))
+        .toList(growable: false);
+
+    final directBranchIds = <String>{};
+    final areaIds = <String>{};
+    final scopedBranchIds = <String>{};
+    final scopedAreaIds = <String>{};
+    var needsAllActiveBranches = false;
+
+    for (final assignment in assignments) {
+      final branchId = assignment.branchId?.trim();
+      if (branchId != null && branchId.isNotEmpty) {
+        scopedBranchIds.add(branchId);
+      }
+
+      final areaId = assignment.areaId?.trim();
+      if (areaId != null && areaId.isNotEmpty) {
+        scopedAreaIds.add(areaId);
+      }
+    }
+
+    for (final assignment in effectiveAssignments) {
+      switch (assignment.role.role) {
+        case RoleCode.developer:
+        case RoleCode.systemManager:
+          needsAllActiveBranches = true;
+          break;
+        case RoleCode.areaManager:
+          final areaId = assignment.areaId?.trim();
+          if (areaId != null && areaId.isNotEmpty) {
+            areaIds.add(areaId);
+          }
+          break;
+        case RoleCode.branchManager:
+        case RoleCode.deputyBranchManager:
+        case RoleCode.storeEmployee:
+        case RoleCode.viewer:
+          final branchId = assignment.branchId?.trim();
+          if (branchId != null && branchId.isNotEmpty) {
+            directBranchIds.add(branchId);
+          }
+          break;
+      }
+    }
+
+    final areas = await remoteDataSource.getAreasByIds(scopedAreaIds);
+    final areasById = {
+      for (final area in areas)
+        area.id: AreaModel(id: area.id, name: area.name),
+    };
+
+    final scopedBranches = await remoteDataSource.getBranchesByIds(
+      scopedBranchIds,
+    );
+    final directActiveBranches = await remoteDataSource.getActiveBranchesByIds(
+      directBranchIds,
+    );
+    final areaBranches = await remoteDataSource.getActiveBranchesForAreaIds(
+      areaIds,
+    );
+    final allBranches = needsAllActiveBranches
+        ? await remoteDataSource.getActiveBranches()
+        : const <RemoteBranch>[];
+
+    final remoteBranchesById = <String, RemoteBranch>{};
+    for (final branch in scopedBranches) {
+      remoteBranchesById[branch.id] = branch;
+    }
+    for (final branch in directActiveBranches) {
+      remoteBranchesById[branch.id] = branch;
+    }
+    for (final branch in areaBranches) {
+      remoteBranchesById[branch.id] = branch;
+    }
+    for (final branch in allBranches) {
+      remoteBranchesById[branch.id] = branch;
+    }
+
+    final branchModels = await _mapRemoteBranchesToModels(
+      remoteBranchesById.values,
+    );
+    final branchesByRemoteId = {
+      for (final branch in branchModels)
+        if (branch.remoteId != null) branch.remoteId!: branch,
+    };
+    final activeBranchesByRemoteId = <String, BranchModel>{};
+    for (final branch in directActiveBranches) {
+      final branchModel = branchesByRemoteId[branch.id];
+      if (branchModel != null) {
+        activeBranchesByRemoteId[branch.id] = branchModel;
+      }
+    }
+    for (final branch in areaBranches) {
+      final branchModel = branchesByRemoteId[branch.id];
+      if (branchModel != null) {
+        activeBranchesByRemoteId[branch.id] = branchModel;
+      }
+    }
+    for (final branch in allBranches) {
+      final branchModel = branchesByRemoteId[branch.id];
+      if (branchModel != null) {
+        activeBranchesByRemoteId[branch.id] = branchModel;
+      }
+    }
+    final branchIdsByAreaId = <String, Set<String>>{};
+    for (final branch in areaBranches) {
+      final areaId = branch.areaId?.trim();
+      if (areaId == null || areaId.isEmpty) {
+        continue;
+      }
+
+      branchIdsByAreaId.putIfAbsent(areaId, () => <String>{}).add(branch.id);
+    }
+
+    final assignmentsByEmployeeId = <String, List<RoleAssignmentModel>>{};
+    for (final assignment in assignments) {
+      assignmentsByEmployeeId
+          .putIfAbsent(assignment.employeeId, () => <RoleAssignmentModel>[])
+          .add(assignment);
+    }
+
+    return employees
+        .map((employee) {
+          final employeeAssignments =
+              assignmentsByEmployeeId[employee.id] ??
+              const <RoleAssignmentModel>[];
+          final roleDetails = <EmployeeRoleAssignmentDetailModel>[];
+          final roleHistory = <EmployeeRoleAssignmentDetailModel>[];
+          final accessibleBranchesById = <String, BranchModel>{};
+          final accessibleAreasById = <String, AreaModel>{};
+
+          for (final assignment in employeeAssignments) {
+            final branch = assignment.branchId == null
+                ? null
+                : branchesByRemoteId[assignment.branchId];
+            final area = assignment.areaId == null
+                ? null
+                : areasById[assignment.areaId];
+            final detail = EmployeeRoleAssignmentDetailModel(
+              assignment: assignment,
+              branch: branch,
+              area: area,
+            );
+
+            if (!assignment.isEffectiveAt(now)) {
+              roleHistory.add(detail);
+              continue;
+            }
+
+            roleDetails.add(detail);
+
+            switch (assignment.role.role) {
+              case RoleCode.developer:
+              case RoleCode.systemManager:
+                accessibleBranchesById.addAll(activeBranchesByRemoteId);
+                break;
+              case RoleCode.areaManager:
+                if (area != null) {
+                  accessibleAreasById[area.id] = area;
+                }
+                final areaBranchIds = assignment.areaId == null
+                    ? const <String>{}
+                    : branchIdsByAreaId[assignment.areaId] ?? const <String>{};
+                for (final branchId in areaBranchIds) {
+                  final areaBranch = activeBranchesByRemoteId[branchId];
+                  if (areaBranch != null) {
+                    accessibleBranchesById[branchId] = areaBranch;
+                  }
+                }
+                break;
+              case RoleCode.branchManager:
+              case RoleCode.deputyBranchManager:
+              case RoleCode.storeEmployee:
+              case RoleCode.viewer:
+                final activeBranch = assignment.branchId == null
+                    ? null
+                    : activeBranchesByRemoteId[assignment.branchId];
+                if (activeBranch != null && activeBranch.remoteId != null) {
+                  accessibleBranchesById[activeBranch.remoteId!] = activeBranch;
+                }
+                break;
+            }
+          }
+
+          final accessibleBranches = accessibleBranchesById.values.toList()
+            ..sort(
+              (first, second) =>
+                  first.name.toLowerCase().compareTo(second.name.toLowerCase()),
+            );
+          final accessibleAreas = accessibleAreasById.values.toList()
+            ..sort(
+              (first, second) =>
+                  first.name.toLowerCase().compareTo(second.name.toLowerCase()),
+            );
+
+          return EmployeeDirectoryEntryModel(
+            employee: employee,
+            effectiveRoles: roleDetails,
+            roleHistory: roleHistory,
+            accessibleBranches: accessibleBranches,
+            accessibleAreas: accessibleAreas,
+          );
+        })
+        .where(
+          (entry) => !entry.effectiveRoles.any(
+            (detail) => detail.assignment.role.role == RoleCode.developer,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<EmployeeModel?> getEmployeeByAuthUserId(String authUserId) async {
+    final employee = await remoteDataSource.getEmployeeByAuthUserId(authUserId);
+
+    return employee == null ? null : _mapRemoteEmployee(employee);
+  }
+
+  Future<List<RoleAssignmentModel>> getEffectiveRoleAssignmentsForEmployee({
+    required String employeeId,
+    DateTime? evaluationTimeUtc,
+  }) {
+    return remoteDataSource.getEffectiveRoleAssignmentsForEmployee(
+      employeeId: employeeId,
+      evaluationTimeUtc: evaluationTimeUtc,
+    );
+  }
+
+  Future<List<BranchModel>> getAccessibleBranchesForAssignments(
+    Iterable<RoleAssignmentModel> assignments,
+  ) async {
+    final branchIds = <String>{};
+    final areaIds = <String>{};
+    var canAccessAllBranches = false;
+
+    for (final assignment in assignments) {
+      switch (assignment.role.role) {
+        case RoleCode.developer:
+        case RoleCode.systemManager:
+          canAccessAllBranches = true;
+          break;
+        case RoleCode.areaManager:
+          final areaId = assignment.areaId?.trim();
+          if (areaId != null && areaId.isNotEmpty) {
+            areaIds.add(areaId);
+          }
+          break;
+        case RoleCode.branchManager:
+        case RoleCode.deputyBranchManager:
+        case RoleCode.storeEmployee:
+        case RoleCode.viewer:
+          final branchId = assignment.branchId?.trim();
+          if (branchId != null && branchId.isNotEmpty) {
+            branchIds.add(branchId);
+          }
+          break;
+      }
+    }
+
+    if (canAccessAllBranches) {
+      return getBranches();
+    }
+
+    final accessibleRemoteBranchesById = <String, RemoteBranch>{};
+
+    for (final branch in await remoteDataSource.getActiveBranchesByIds(
+      branchIds,
+    )) {
+      accessibleRemoteBranchesById[branch.id] = branch;
+    }
+
+    for (final branch in await remoteDataSource.getActiveBranchesForAreaIds(
+      areaIds,
+    )) {
+      accessibleRemoteBranchesById[branch.id] = branch;
+    }
+
+    return _mapRemoteBranchesToModels(accessibleRemoteBranchesById.values);
+  }
+
+  Future<List<BranchModel>> getActiveBranchesForAreaIds(
+    Set<String> areaIds,
+  ) async {
+    final branches = await remoteDataSource.getActiveBranchesForAreaIds(
+      areaIds,
+    );
+
+    return _mapRemoteBranchesToModels(branches);
+  }
+
+  Future<CreateEmployeeResult> createEmployeeWithFirstRoleAssignment(
+    CreateEmployeeRequest request,
+  ) async {
+    _validateCreateEmployeeRequest(request);
+
+    return remoteDataSource.createEmployeeWithFirstRoleAssignment(
+      name: request.name,
+      phone: request.phone,
+      roleCode: request.role.code,
+      areaId: request.areaId,
+      branchId: request.branchId,
+      validFrom: request.validFrom,
+      validUntil: request.validUntil,
+    );
+  }
+
+  Future<AddRoleAssignmentResult> addEmployeeRoleAssignment(
+    AddRoleAssignmentRequest request,
+  ) {
+    _validateAddRoleAssignmentRequest(request);
+
+    return remoteDataSource.addEmployeeRoleAssignment(
+      targetEmployeeId: request.targetEmployeeId,
+      roleCode: request.roleCode.code,
+      areaId: request.areaId,
+      branchId: request.branchId,
+      validFrom: request.validFrom,
+      validUntil: request.validUntil,
+    );
+  }
+
+  Future<EndRoleAssignmentResult> endEmployeeRoleAssignment(
+    EndRoleAssignmentRequest request,
+  ) {
+    _validateEndRoleAssignmentRequest(request);
+
+    return remoteDataSource.endEmployeeRoleAssignment(
+      roleAssignmentId: request.roleAssignmentId,
+    );
+  }
+
+  Future<ReplaceRoleAssignmentResult> replaceEmployeeRoleAssignment(
+    ReplaceRoleAssignmentRequest request,
+  ) {
+    _validateReplaceRoleAssignmentRequest(request);
+
+    return remoteDataSource.replaceEmployeeRoleAssignment(
+      roleAssignmentId: request.roleAssignmentId,
+      roleCode: request.roleCode.code,
+      areaId: request.areaId,
+      branchId: request.branchId,
+      validUntil: request.validUntil,
+    );
+  }
+
   Future<bool> employeeManagementNameExistsInBranch({
     required String fullName,
     required BranchModel branch,
@@ -260,110 +640,52 @@ class InventoryRepository {
     required String phone,
     required BranchModel branch,
   }) async {
-    final branchId = _requireRemoteBranchId(branch);
-    final fullName = _employeeFullName(
-      firstName: firstName,
-      lastName: lastName,
-    );
-    final activeDuplicate = await employeeManagementNameExistsInBranch(
-      fullName: fullName,
-      branch: branch,
-    );
-
-    if (activeDuplicate) {
-      throw StateError('Employee name already exists in this branch.');
-    }
-
-    final matchingInactiveEmployee = await _matchingInactiveEmployeeInBranch(
-      fullName: fullName,
-      phone: phone,
-      branchId: branchId,
-    );
-    final employee = matchingInactiveEmployee == null
-        ? await remoteDataSource.createEmployee(
-            name: fullName,
-            phone: phone,
-            branchId: branchId,
-          )
-        : await remoteDataSource.reactivateEmployeeForBranch(
-            employee: matchingInactiveEmployee,
-            name: fullName,
-            phone: phone,
-            branchId: branchId,
-          );
-
-    await auditRepository.logAction(
-      action: matchingInactiveEmployee == null
-          ? 'EmployeeCreated'
-          : 'EmployeeReactivated',
-      entityType: 'Employee',
-      description:
-          'Employee ${employee.name} (${employee.employeeCode}) '
-          'created in branch ${branch.name}.',
-      employeeName: employee.name,
-      branchName: branch.name,
+    throw StateError(
+      'Employee Management is temporarily unavailable until '
+      'role_assignments management is implemented.',
     );
   }
 
   Future<void> updateEmployeeForManagement({
     required EmployeeModel employee,
-    required String firstName,
-    required String lastName,
+    required String name,
     required String phone,
-    required BranchModel branch,
   }) async {
-    final branchId = _requireRemoteBranchId(branch);
-    final fullName = _employeeFullName(
-      firstName: firstName,
-      lastName: lastName,
-    );
-    final activeDuplicate = await employeeManagementNameExistsInBranch(
-      fullName: fullName,
-      branch: branch,
-      excludeEmployeeId: employee.id,
-    );
+    _requireUuid(employee.id, 'employee id');
 
-    if (activeDuplicate) {
-      throw StateError('Employee name already exists in this branch.');
+    final trimmedName = name.trim();
+    final trimmedPhone = phone.trim();
+
+    if (trimmedName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Employee name is empty.');
     }
 
-    await remoteDataSource.updateEmployee(
-      id: employee.id,
-      name: fullName,
-      phone: phone,
-    );
+    if (trimmedPhone.isEmpty) {
+      throw ArgumentError.value(phone, 'phone', 'Employee phone is empty.');
+    }
 
-    if (employee.branchId != branchId) {
-      await remoteDataSource.moveEmployeeToBranch(
-        employeeId: employee.id,
-        oldMembershipId: employee.membershipId,
-        newBranchId: branchId,
+    try {
+      await remoteDataSource.updateEmployee(
+        id: employee.id,
+        name: trimmedName,
+        phone: trimmedPhone,
       );
-    }
+    } on PostgrestException catch (error) {
+      if (_isUniqueConflictForColumn(error, 'phone')) {
+        throw StateError('Employee phone already exists.');
+      }
 
-    await auditRepository.logAction(
-      action: 'EmployeeUpdated',
-      entityType: 'Employee',
-      description:
-          'Employee $fullName (${employee.employeeCode}) '
-          'updated in branch ${branch.name}.',
-      employeeName: fullName,
-      branchName: branch.name,
-    );
+      rethrow;
+    }
   }
 
-  Future<void> deactivateEmployeeForManagement(EmployeeModel employee) async {
-    await remoteDataSource.deactivateEmployee(employeeId: employee.id);
+  Future<DeactivateEmployeeResult> deactivateEmployeeForManagement(
+    DeactivateEmployeeRequest request,
+  ) {
+    _requireUuid(request.targetEmployeeId, 'target employee id');
 
-    final branchName = await _remoteBranchName(employee.branchId);
-
-    await auditRepository.logAction(
-      action: 'EmployeeDeleted',
-      entityType: 'Employee',
-      description:
-          'Employee ${employee.name} (${employee.employeeCode}) deactivated.',
-      employeeName: employee.name,
-      branchName: branchName,
+    return remoteDataSource.deactivateEmployeeForManagement(
+      targetEmployeeId: request.targetEmployeeId,
     );
   }
 
@@ -385,6 +707,13 @@ class InventoryRepository {
 
   Future<List<BranchModel>> getBranches() async {
     final remoteBranches = await remoteDataSource.getActiveBranches();
+
+    return _mapRemoteBranchesToModels(remoteBranches);
+  }
+
+  Future<List<BranchModel>> _mapRemoteBranchesToModels(
+    Iterable<RemoteBranch> remoteBranches,
+  ) async {
     final localBranches = await localDataSource.getBranches();
     final localByCode = {
       for (final branch in localBranches)
@@ -687,13 +1016,13 @@ class InventoryRepository {
       throw StateError('Employee is inactive.');
     }
 
-    final hasMembership = await remoteDataSource
-        .employeeHasActiveBranchMembership(
+    final hasBranchAccess = await remoteDataSource
+        .employeeHasEffectiveBranchAccess(
           employeeId: employee.id,
           branchId: branchId,
         );
 
-    if (!hasMembership) {
+    if (!hasBranchAccess) {
       throw StateError('Employee is not assigned to the selected branch.');
     }
 
@@ -890,35 +1219,9 @@ class InventoryRepository {
       employeeCode: employee.employeeCode,
       name: employee.name,
       phone: employee.phone,
+      authUserId: employee.authUserId,
       isActive: employee.isActive,
-      branchId: employee.branchId,
-      membershipId: employee.membershipId,
     );
-  }
-
-  Future<RemoteEmployee?> _matchingInactiveEmployeeInBranch({
-    required String fullName,
-    required String phone,
-    required String branchId,
-  }) async {
-    final normalizedName = _normalizeEmployeeName(fullName);
-    final normalizedPhone = phone.trim();
-    final employees = await remoteDataSource.getEmployeesForBranch(
-      branchId: branchId,
-      includeInactiveEmployees: true,
-      includeInactiveMemberships: true,
-    );
-
-    for (final employee in employees) {
-      final sameName = _normalizeEmployeeName(employee.name) == normalizedName;
-      final samePhone = employee.phone.trim() == normalizedPhone;
-
-      if (sameName && samePhone && !employee.isActive) {
-        return employee;
-      }
-    }
-
-    return null;
   }
 
   String _normalizeEmployeeName(String name) {
@@ -938,6 +1241,176 @@ class InventoryRepository {
   void _requireUuid(String value, String label) {
     if (value.trim().isEmpty) {
       throw StateError('$label is missing its Supabase id.');
+    }
+  }
+
+  void _validateCreateEmployeeRequest(CreateEmployeeRequest request) {
+    final name = request.name.trim();
+    final phone = request.phone.trim();
+
+    if (name.isEmpty) {
+      throw ArgumentError.value(
+        request.name,
+        'name',
+        'Employee name is empty.',
+      );
+    }
+
+    if (phone.isEmpty) {
+      throw ArgumentError.value(
+        request.phone,
+        'phone',
+        'Employee phone is empty.',
+      );
+    }
+
+    if (!request.access.canAssignRole(request.role)) {
+      throw StateError('The selected role is not assignable by this session.');
+    }
+
+    switch (request.role) {
+      case RoleCode.developer:
+        throw StateError('Developer cannot be assigned through this workflow.');
+      case RoleCode.systemManager:
+        if (request.areaId != null || request.branchId != null) {
+          throw StateError('System Manager must use global scope.');
+        }
+        break;
+      case RoleCode.areaManager:
+        final areaId = request.areaId;
+        if (areaId == null || areaId.trim().isEmpty) {
+          throw StateError('Area Manager requires an area scope.');
+        }
+        if (request.branchId != null || !request.access.canUseArea(areaId)) {
+          throw StateError('Area scope is not allowed.');
+        }
+        break;
+      case RoleCode.branchManager:
+      case RoleCode.deputyBranchManager:
+      case RoleCode.storeEmployee:
+      case RoleCode.viewer:
+        final branchId = request.branchId;
+        if (branchId == null || branchId.trim().isEmpty) {
+          throw StateError('Branch-scoped role requires a branch scope.');
+        }
+        if (request.areaId != null || !request.access.canUseBranch(branchId)) {
+          throw StateError('Branch scope is not allowed.');
+        }
+        break;
+    }
+
+    if (request.role == RoleCode.deputyBranchManager) {
+      final validFrom = request.validFrom;
+      final validUntil = request.validUntil;
+
+      if (validFrom == null || validUntil == null) {
+        throw StateError('Deputy Branch Manager requires validity dates.');
+      }
+
+      if (!validUntil.isAfter(validFrom)) {
+        throw StateError('Deputy validity end must be after start.');
+      }
+    } else if (request.validFrom != null || request.validUntil != null) {
+      throw StateError('Validity dates are only supported for Deputy role.');
+    }
+  }
+
+  void _validateAddRoleAssignmentRequest(AddRoleAssignmentRequest request) {
+    _requireUuid(request.targetEmployeeId, 'target employee id');
+
+    switch (request.roleCode) {
+      case RoleCode.developer:
+        throw StateError('Developer cannot be assigned through this workflow.');
+      case RoleCode.systemManager:
+        if (request.areaId != null || request.branchId != null) {
+          throw StateError('System Manager must use global scope.');
+        }
+        break;
+      case RoleCode.areaManager:
+        final areaId = request.areaId;
+        if (areaId == null || areaId.trim().isEmpty) {
+          throw StateError('Area Manager requires an area scope.');
+        }
+        if (request.branchId != null) {
+          throw StateError('Area Manager cannot use branch scope.');
+        }
+        break;
+      case RoleCode.branchManager:
+      case RoleCode.deputyBranchManager:
+      case RoleCode.storeEmployee:
+      case RoleCode.viewer:
+        final branchId = request.branchId;
+        if (branchId == null || branchId.trim().isEmpty) {
+          throw StateError('Branch-scoped role requires a branch scope.');
+        }
+        if (request.areaId != null) {
+          throw StateError('Branch-scoped role cannot use area scope.');
+        }
+        break;
+    }
+
+    if (request.roleCode == RoleCode.deputyBranchManager) {
+      final validFrom = request.validFrom;
+      final validUntil = request.validUntil;
+
+      if (validFrom == null || validUntil == null) {
+        throw StateError('Deputy Branch Manager requires validity dates.');
+      }
+
+      if (!validUntil.isAfter(validFrom)) {
+        throw StateError('Deputy validity end must be after start.');
+      }
+    } else if (request.validFrom != null || request.validUntil != null) {
+      throw StateError('Validity dates are only supported for Deputy role.');
+    }
+  }
+
+  void _validateEndRoleAssignmentRequest(EndRoleAssignmentRequest request) {
+    _requireUuid(request.roleAssignmentId, 'role assignment id');
+  }
+
+  void _validateReplaceRoleAssignmentRequest(
+    ReplaceRoleAssignmentRequest request,
+  ) {
+    _requireUuid(request.roleAssignmentId, 'role assignment id');
+
+    switch (request.roleCode) {
+      case RoleCode.developer:
+        throw StateError('Developer assignments cannot be managed here.');
+      case RoleCode.systemManager:
+        if (request.areaId != null || request.branchId != null) {
+          throw StateError('System Manager cannot use area or branch scope.');
+        }
+        break;
+      case RoleCode.areaManager:
+        final areaId = request.areaId;
+        if (areaId == null || areaId.trim().isEmpty) {
+          throw StateError('Area Manager requires an area scope.');
+        }
+        if (request.branchId != null) {
+          throw StateError('Area Manager cannot use branch scope.');
+        }
+        break;
+      case RoleCode.branchManager:
+      case RoleCode.deputyBranchManager:
+      case RoleCode.storeEmployee:
+      case RoleCode.viewer:
+        final branchId = request.branchId;
+        if (branchId == null || branchId.trim().isEmpty) {
+          throw StateError('Branch-scoped role requires a branch scope.');
+        }
+        if (request.areaId != null) {
+          throw StateError('Branch-scoped role cannot use area scope.');
+        }
+        break;
+    }
+
+    if (request.roleCode == RoleCode.deputyBranchManager) {
+      if (request.validUntil == null) {
+        throw StateError('Deputy Branch Manager requires validity end date.');
+      }
+    } else if (request.validUntil != null) {
+      throw StateError('Validity is only supported for Deputy role.');
     }
   }
 
@@ -965,18 +1438,6 @@ class InventoryRepository {
         !path.contains('/') &&
         !path.contains(':') &&
         !path.startsWith('yelena_inventory_product_image_');
-  }
-
-  Future<String> _remoteBranchName(String branchId) async {
-    final branches = await getBranches();
-
-    for (final branch in branches) {
-      if (branch.remoteId == branchId) {
-        return branch.name;
-      }
-    }
-
-    return 'Unknown branch';
   }
 
   Future<String> _branchName(int? branchId) async {

@@ -7,14 +7,16 @@ import 'package:image_picker/image_picker.dart';
 import '../database/app_database.dart';
 import '../localization/app_language.dart';
 import '../models/branch_model.dart';
-import '../models/employee_model.dart';
 import '../models/inventory_count_model.dart';
+import '../providers/current_session_provider.dart';
 import '../providers/global_loading_provider.dart';
 import '../providers/inventory_db_provider.dart';
 import '../providers/repository_provider.dart';
 import '../repositories/inventory_repository.dart';
+import '../services/app_exit_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_buttons.dart';
+import '../widgets/app_error_banner.dart';
 import '../widgets/app_frame.dart';
 import '../widgets/app_list_card.dart';
 import '../widgets/app_scrollbar.dart';
@@ -23,12 +25,10 @@ import '../widgets/app_text_field.dart';
 import '../widgets/product_image_widgets.dart';
 import '../widgets/section_title.dart';
 import 'barcode_scanner_screen.dart';
+import 'settings_screen.dart';
 
 class ScanScreen extends ConsumerStatefulWidget {
-  final BranchModel branch;
-  final EmployeeModel employee;
-
-  const ScanScreen({super.key, required this.branch, required this.employee});
+  const ScanScreen({super.key});
 
   @override
   ConsumerState<ScanScreen> createState() => _ScanScreenState();
@@ -48,6 +48,8 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   String? barcodeErrorText;
   String? quantityErrorText;
   bool saving = false;
+  bool branchSwitching = false;
+  String? branchSwitchError;
 
   bool loading = true;
 
@@ -66,8 +68,20 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   }
 
   Future<void> loadInventory() async {
+    final branch = ref.read(currentBranchProvider);
+
+    if (branch == null) {
+      if (!mounted) return;
+
+      setState(() {
+        inventory = [];
+        loading = false;
+      });
+      return;
+    }
+
     final repo = ref.read(inventoryRepositoryProvider);
-    final data = await repo.getOperationalInventoryForBranch(widget.branch);
+    final data = await repo.getOperationalInventoryForBranch(branch);
 
     if (!mounted) return;
 
@@ -133,6 +147,15 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     }
 
     final repo = ref.read(inventoryRepositoryProvider);
+    final branch = ref.read(currentBranchProvider);
+    final employee = ref.read(currentEmployeeProvider);
+
+    if (branch == null || employee == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.sessionLoadFailedBody)));
+      return;
+    }
 
     saving = true;
     setState(() {});
@@ -144,8 +167,8 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       await ref.read(globalLoadingProvider.notifier).runWithLoading<void>(
         () async {
           await repo.saveOperationalInventory(
-            branch: widget.branch,
-            employee: widget.employee,
+            branch: branch,
+            employee: employee,
             barcode: barcode,
             quantity: quantity!,
           );
@@ -176,7 +199,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           barcodeErrorText = null;
           quantityErrorText = null;
 
-          ref.invalidate(operationalInventoryProvider(widget.branch));
+          ref.invalidate(operationalInventoryProvider(branch));
           await loadInventory();
 
           if (!mounted) return;
@@ -413,6 +436,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   Future<void> _showEditInventoryDialog(InventoryCountModel item) async {
     final strings = ref.read(appStringsProvider);
     final repository = ref.read(inventoryRepositoryProvider);
+    final branch = ref.read(currentBranchProvider);
 
     final saved = await showDialog<bool>(
       context: context,
@@ -427,9 +451,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       },
     );
 
-    if (saved == true && mounted) {
+    if (saved == true && mounted && branch != null) {
       await loadInventory();
-      ref.invalidate(operationalInventoryProvider(widget.branch));
+      ref.invalidate(operationalInventoryProvider(branch));
 
       if (barcodeController.text.trim() == item.barcode) {
         await _loadProductImageForBarcode(item.barcode);
@@ -442,6 +466,117 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(strings.savedSuccessfully)));
+    }
+  }
+
+  Future<void> _confirmExit(AppStrings strings) async {
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(strings.exitApplication),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: Text(strings.cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: Text(strings.exit),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldExit == true) {
+      await AppExitService.exitApplication();
+    }
+  }
+
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
+
+  Future<void> _switchCurrentBranch({
+    required BranchModel previousBranch,
+    required BranchModel selectedBranch,
+  }) async {
+    if (branchSwitching ||
+        selectedBranch.branchCode == previousBranch.branchCode) {
+      return;
+    }
+
+    setState(() {
+      branchSwitching = true;
+      branchSwitchError = null;
+    });
+
+    try {
+      await ref
+          .read(currentSessionProvider.notifier)
+          .selectCurrentBranch(selectedBranch);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        barcodeController.clear();
+        quantityController.clear();
+        loadedImageBarcode = '';
+        currentProductImage = null;
+        pendingProductImageBytes = null;
+        barcodeErrorText = null;
+        quantityErrorText = null;
+        inventory = [];
+        loading = true;
+      });
+
+      ref.invalidate(operationalInventoryProvider(previousBranch));
+      ref.invalidate(operationalInventoryProvider(selectedBranch));
+
+      await loadInventory();
+
+      if (!mounted) {
+        return;
+      }
+
+      barcodeFocusNode.requestFocus();
+    } catch (error, stackTrace) {
+      debugPrint('Current branch switch failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      try {
+        await ref
+            .read(currentSessionProvider.notifier)
+            .selectCurrentBranch(previousBranch);
+      } catch (restoreError, restoreStackTrace) {
+        debugPrint('Current branch restore failed: $restoreError');
+        debugPrintStack(stackTrace: restoreStackTrace);
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        loading = false;
+        branchSwitchError = ref.read(appStringsProvider).branchSwitchFailed;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          branchSwitching = false;
+        });
+      }
     }
   }
 
@@ -459,8 +594,21 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+    final branch = ref.watch(currentBranchProvider);
+    final employee = ref.watch(currentEmployeeProvider);
+    final accessibleBranches = ref.watch(accessibleBranchesProvider);
+
+    if (branch == null || employee == null) {
+      return AppFrame(
+        child: ErrorView(
+          message: strings.sessionLoadFailedBody,
+          retryLabel: strings.retry,
+        ),
+      );
+    }
+
     ref.listen<AsyncValue<List<InventoryCountModel>>>(
-      operationalInventoryProvider(widget.branch),
+      operationalInventoryProvider(branch),
       (previous, next) {
         next.whenData((data) {
           if (!mounted) {
@@ -474,201 +622,363 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         });
       },
     );
-    ref.watch(operationalInventoryProvider(widget.branch));
+    ref.watch(operationalInventoryProvider(branch));
 
     if (loading) {
       return AppFrame(child: LoadingView(message: strings.loadingInventory));
     }
 
-    return AppFrame(
-      child: AppScrollbar(
-        builder: (controller) {
-          return ListView(
-            controller: controller,
-            children: [
-              SectionTitle(
-                title: strings.scanProducts,
-                subtitle: strings.employeeSubtitle(widget.employee.name),
-                icon: Icons.qr_code_scanner,
-              ),
-              const SizedBox(height: 18),
-              Row(
-                textDirection: TextDirection.ltr,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Directionality(
-                      textDirection: Directionality.of(context),
-                      child: AppTextField(
-                        controller: barcodeController,
-                        focusNode: barcodeFocusNode,
-                        label: strings.barcode,
-                        icon: Icons.document_scanner_outlined,
-                        keyboardType: TextInputType.number,
-                        errorText: barcodeErrorText,
-                      ),
-                    ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+
+        _confirmExit(strings);
+      },
+      child: AppFrame(
+        showAppBar: false,
+        headerLeading: IconButton(
+          tooltip: strings.exit,
+          onPressed: () {
+            _confirmExit(strings);
+          },
+          icon: const Icon(Icons.exit_to_app_outlined),
+        ),
+        headerActions: [
+          IconButton(
+            tooltip: strings.settings,
+            onPressed: _openSettings,
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
+        child: AppScrollbar(
+          builder: (controller) {
+            return ListView(
+              controller: controller,
+              children: [
+                if (accessibleBranches.length > 1) ...[
+                  _ScanBranchSelector(
+                    currentBranchName: branch.name,
+                    branchSwitching: branchSwitching,
+                    branches: accessibleBranches,
+                    currentBranch: branch,
+                    branchTooltip: strings.switchBranch,
+                    onBranchSelected: (selectedBranch) {
+                      _switchCurrentBranch(
+                        previousBranch: branch,
+                        selectedBranch: selectedBranch,
+                      );
+                    },
                   ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 92,
-                    height: 48,
-                    child: FilledButton.tonal(
-                      onPressed: scanBarcode,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppTheme.success.withValues(
-                          alpha: 0.16,
-                        ),
-                        foregroundColor: AppTheme.success,
-                        minimumSize: Size.zero,
-                        padding: EdgeInsets.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: Image.asset(
-                        'assets/icons/scan_barcode.png',
-                        width: 55,
-                        height: 46,
-                        fit: BoxFit.fill,
-                        semanticLabel: strings.scanBarcode,
-                      ),
-                    ),
-                  ),
+                  const SizedBox(height: 12),
                 ],
-              ),
-              const SizedBox(height: 12),
-              ProductImageSection(
-                image: currentProductImage,
-                previewBytes: pendingProductImageBytes,
-                barcode: barcodeController.text.trim(),
-                repository: ref.read(inventoryRepositoryProvider),
-                onAdd: showProductImageActions,
-                onReplace: showProductImageActions,
-                noImageLabel: strings.noProductImage,
-                addImageLabel: strings.addProductImage,
-                replaceImageLabel: strings.replaceProductImage,
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                controller: quantityController,
-                focusNode: quantityFocusNode,
-                label: strings.quantity,
-                icon: Icons.add_chart_outlined,
-                keyboardType: TextInputType.number,
-                errorText: quantityErrorText,
-              ),
-              const SizedBox(height: 16),
-              PrimaryButton(
-                label: strings.save,
-                icon: Icons.save_outlined,
-                onPressed:
-                    saving ||
-                        barcodeController.text.trim().isEmpty ||
-                        quantityController.text.trim().isEmpty
-                    ? null
-                    : saveProduct,
-              ),
-              const SizedBox(height: 18),
-              _InventoryHeader(
-                label: strings.countedProducts(inventory.length),
-              ),
-              const SizedBox(height: 12),
-              if (inventory.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: EmptyState(
-                    icon: Icons.inventory_2_outlined,
-                    message: strings.noInventoryItems,
-                  ),
-                )
-              else
-                ...inventory.map(
-                  (item) => AppListCard(
-                    child: ListTile(
-                      leading: _InventoryProductImage(
-                        barcode: item.barcode,
-                        fallbackIcon: Icons.inventory_2_outlined,
+                if (branchSwitchError != null) ...[
+                  AppErrorBanner(message: branchSwitchError!),
+                  const SizedBox(height: 12),
+                ],
+                SectionTitle(
+                  title: strings.scanProducts,
+                  subtitle: strings.employeeSubtitle(employee.name),
+                  icon: Icons.qr_code_scanner,
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  textDirection: TextDirection.ltr,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Directionality(
+                        textDirection: Directionality.of(context),
+                        child: AppTextField(
+                          controller: barcodeController,
+                          focusNode: barcodeFocusNode,
+                          label: strings.barcode,
+                          icon: Icons.document_scanner_outlined,
+                          keyboardType: TextInputType.number,
+                          errorText: barcodeErrorText,
+                        ),
                       ),
-                      title: Text(
-                        item.barcode,
-                        style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 92,
+                      height: 48,
+                      child: FilledButton.tonal(
+                        onPressed: scanBarcode,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.success.withValues(
+                            alpha: 0.16,
+                          ),
+                          foregroundColor: AppTheme.success,
+                          minimumSize: Size.zero,
+                          padding: EdgeInsets.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Image.asset(
+                          'assets/icons/scan_barcode.png',
+                          width: 55,
+                          height: 46,
+                          fit: BoxFit.fill,
+                          semanticLabel: strings.scanBarcode,
+                        ),
                       ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                AppTextField(
+                  controller: quantityController,
+                  focusNode: quantityFocusNode,
+                  label: strings.quantity,
+                  icon: Icons.add_chart_outlined,
+                  keyboardType: TextInputType.number,
+                  errorText: quantityErrorText,
+                ),
+                const SizedBox(height: 12),
+                ProductImageSection(
+                  image: currentProductImage,
+                  previewBytes: pendingProductImageBytes,
+                  barcode: barcodeController.text.trim(),
+                  repository: ref.read(inventoryRepositoryProvider),
+                  onAdd: showProductImageActions,
+                  onReplace: showProductImageActions,
+                  noImageLabel: strings.noProductImage,
+                  addImageLabel: strings.addProductImage,
+                  replaceImageLabel: strings.replaceProductImage,
+                ),
+                const SizedBox(height: 16),
+                PrimaryButton(
+                  label: strings.save,
+                  icon: Icons.save_outlined,
+                  onPressed:
+                      saving ||
+                          barcodeController.text.trim().isEmpty ||
+                          quantityController.text.trim().isEmpty
+                      ? null
+                      : saveProduct,
+                ),
+                const SizedBox(height: 18),
+                _InventoryHeader(
+                  label: strings.countedProducts(inventory.length),
+                ),
+                const SizedBox(height: 12),
+                if (inventory.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: EmptyState(
+                      icon: Icons.inventory_2_outlined,
+                      message: strings.noInventoryItems,
+                    ),
+                  )
+                else
+                  ...inventory.map(
+                    (item) => AppListCard(
+                      child: ListTile(
+                        leading: _InventoryProductImage(
+                          barcode: item.barcode,
+                          fallbackIcon: Icons.inventory_2_outlined,
+                        ),
+                        title: Text(
+                          item.barcode,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${strings.quantity}: ${item.quantity}'),
+                              Text(_formatInventoryTimestamp(item.countedAt)),
+                            ],
+                          ),
+                        ),
+                        trailing: Wrap(
+                          spacing: 4,
                           children: [
-                            Text('${strings.quantity}: ${item.quantity}'),
-                            Text(_formatInventoryTimestamp(item.countedAt)),
+                            IconButton(
+                              tooltip: strings.edit,
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () {
+                                _showEditInventoryDialog(item);
+                              },
+                            ),
+                            IconButton(
+                              tooltip: strings.delete,
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: AppTheme.error,
+                              ),
+                              onPressed: () async {
+                                final confirmed =
+                                    await _confirmDeleteInventoryRecord();
+
+                                if (confirmed != true) {
+                                  return;
+                                }
+
+                                final repo = ref.read(
+                                  inventoryRepositoryProvider,
+                                );
+                                await ref
+                                    .read(globalLoadingProvider.notifier)
+                                    .runWithLoading<void>(() async {
+                                      await repo
+                                          .deleteOperationalInventoryRecord(
+                                            item.id,
+                                          );
+                                      ref.invalidate(
+                                        operationalInventoryProvider(branch),
+                                      );
+                                      await loadInventory();
+                                      if (barcodeController.text.trim() ==
+                                          item.barcode) {
+                                        await _loadProductImageForBarcode(
+                                          item.barcode,
+                                        );
+                                      }
+                                    });
+
+                                if (!context.mounted) return;
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      strings.inventoryRecordDeleted,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                           ],
                         ),
                       ),
-                      trailing: Wrap(
-                        spacing: 4,
-                        children: [
-                          IconButton(
-                            tooltip: strings.edit,
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () {
-                              _showEditInventoryDialog(item);
-                            },
-                          ),
-                          IconButton(
-                            tooltip: strings.delete,
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: AppTheme.error,
-                            ),
-                            onPressed: () async {
-                              final confirmed =
-                                  await _confirmDeleteInventoryRecord();
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
 
-                              if (confirmed != true) {
-                                return;
-                              }
+class _ScanBranchSelector extends StatelessWidget {
+  final String currentBranchName;
+  final bool branchSwitching;
+  final List<BranchModel> branches;
+  final BranchModel currentBranch;
+  final String branchTooltip;
+  final ValueChanged<BranchModel> onBranchSelected;
 
-                              final repo = ref.read(
-                                inventoryRepositoryProvider,
-                              );
-                              await ref
-                                  .read(globalLoadingProvider.notifier)
-                                  .runWithLoading<void>(() async {
-                                    await repo.deleteOperationalInventoryRecord(
-                                      item.id,
-                                    );
-                                    ref.invalidate(
-                                      operationalInventoryProvider(
-                                        widget.branch,
-                                      ),
-                                    );
-                                    await loadInventory();
-                                    if (barcodeController.text.trim() ==
-                                        item.barcode) {
-                                      await _loadProductImageForBarcode(
-                                        item.barcode,
-                                      );
-                                    }
-                                  });
+  const _ScanBranchSelector({
+    required this.currentBranchName,
+    required this.branchSwitching,
+    required this.branches,
+    required this.currentBranch,
+    required this.branchTooltip,
+    required this.onBranchSelected,
+  });
 
-                              if (!context.mounted) return;
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 260),
+        child: _CurrentBranchSwitcherButton(
+          label: currentBranchName,
+          tooltip: branchTooltip,
+          branches: branches,
+          currentBranch: currentBranch,
+          enabled: !branchSwitching,
+          onSelected: onBranchSelected,
+        ),
+      ),
+    );
+  }
+}
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(strings.inventoryRecordDeleted),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+class _CurrentBranchSwitcherButton extends StatelessWidget {
+  final String label;
+  final String tooltip;
+  final List<BranchModel> branches;
+  final BranchModel currentBranch;
+  final bool enabled;
+  final ValueChanged<BranchModel> onSelected;
+
+  const _CurrentBranchSwitcherButton({
+    required this.label,
+    required this.tooltip,
+    required this.branches,
+    required this.currentBranch,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<BranchModel>(
+      tooltip: tooltip,
+      enabled: enabled,
+      onSelected: onSelected,
+      itemBuilder: (context) {
+        return [
+          for (final branch in branches)
+            CheckedPopupMenuItem<BranchModel>(
+              value: branch,
+              checked: branch.branchCode == currentBranch.branchCode,
+              child: Text(branch.name, overflow: TextOverflow.ellipsis),
+            ),
+        ];
+      },
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: AppTheme.primary.withValues(alpha: enabled ? 0.08 : 0.04),
+          borderRadius: BorderRadius.circular(999),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.storefront_outlined,
+                  size: 18,
+                  color: enabled
+                      ? AppTheme.primary
+                      : AppTheme.primary.withValues(alpha: 0.45),
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: enabled
+                          ? AppTheme.primary
+                          : AppTheme.primary.withValues(alpha: 0.45),
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-            ],
-          );
-        },
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.expand_more,
+                  size: 18,
+                  color: enabled
+                      ? AppTheme.primary
+                      : AppTheme.primary.withValues(alpha: 0.45),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

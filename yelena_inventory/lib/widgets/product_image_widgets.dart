@@ -202,33 +202,53 @@ class _NoImagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.primary.withValues(alpha: 0.05),
+    return Material(
+      color: AppTheme.primary.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onAdd,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.14)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.14)),
+          ),
+          child: Row(
             children: [
-              const Icon(Icons.image_not_supported_outlined),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.add_a_photo_outlined,
+                  size: 30,
+                  color: AppTheme.primary,
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: Text(message)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(message),
+                    const SizedBox(height: 4),
+                    Text(
+                      actionLabel,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: TextButton.icon(
-              onPressed: onAdd,
-              icon: const Icon(Icons.photo_camera_outlined),
-              label: Text(actionLabel),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

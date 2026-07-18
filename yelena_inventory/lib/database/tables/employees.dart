@@ -7,6 +7,5 @@ class Employees extends Table {
 
   IntColumn get branchId => integer()();
 
-  BoolColumn get active =>
-      boolean().withDefault(const Constant(true))();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
 }

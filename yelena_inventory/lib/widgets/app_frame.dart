@@ -9,6 +9,9 @@ class AppFrame extends StatelessWidget {
   final List<Widget> actions;
   final Widget? leading;
   final double? leadingWidth;
+  final bool showAppBar;
+  final Widget? headerLeading;
+  final List<Widget> headerActions;
 
   const AppFrame({
     super.key,
@@ -18,6 +21,9 @@ class AppFrame extends StatelessWidget {
     this.actions = const [],
     this.leading,
     this.leadingWidth,
+    this.showAppBar = true,
+    this.headerLeading,
+    this.headerActions = const [],
   });
 
   @override
@@ -27,36 +33,50 @@ class AppFrame extends StatelessWidget {
     final topLogoWidth = _topLogoWidth(screenWidth);
     final route = ModalRoute.of(context);
     final canPop = Navigator.canPop(context) && !(route?.isFirst ?? true);
+    final effectiveHeaderLeading =
+        headerLeading ?? leading ?? (canPop ? const BackButton() : null);
+    final effectiveHeaderActions = [...headerActions, ...actions];
 
-    final content = SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 960),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                _HeaderLogo(visible: !keyboardVisible, width: topLogoWidth),
-                Expanded(child: AppCard(child: child)),
-                _Footer(visible: !keyboardVisible),
-              ],
-            ),
+    final framedContent = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 960),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              _HeaderChrome(visible: !keyboardVisible, width: topLogoWidth),
+              Expanded(child: AppCard(child: child)),
+              _Footer(visible: !keyboardVisible),
+            ],
           ),
         ),
       ),
     );
 
-    return Scaffold(
-      appBar: title == null && actions.isEmpty && leading == null
-          ? null
-          : AppBar(
-              title: title == null ? null : Text(title!),
-              leading: leading,
-              leadingWidth: leadingWidth,
-              actions: actions,
+    final content = SafeArea(
+      child: Stack(
+        children: [
+          framedContent,
+          if (!keyboardVisible && effectiveHeaderLeading != null)
+            PositionedDirectional(
+              top: 12,
+              start: 12,
+              child: effectiveHeaderLeading,
             ),
-      body: Stack(children: [content, if (canPop) const _FloatingBackButton()]),
+          if (!keyboardVisible && effectiveHeaderActions.isNotEmpty)
+            PositionedDirectional(
+              top: 12,
+              end: 12,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: effectiveHeaderActions,
+              ),
+            ),
+        ],
+      ),
     );
+
+    return Scaffold(body: content);
   }
 
   double _topLogoWidth(double width) {
@@ -72,11 +92,11 @@ class AppFrame extends StatelessWidget {
   }
 }
 
-class _HeaderLogo extends StatelessWidget {
+class _HeaderChrome extends StatelessWidget {
   final bool visible;
   final double width;
 
-  const _HeaderLogo({required this.visible, required this.width});
+  const _HeaderChrome({required this.visible, required this.width});
 
   @override
   Widget build(BuildContext context) {
@@ -88,14 +108,25 @@ class _HeaderLogo extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: SizedBox(
-            width: width,
-            child: Image.asset(
-              'assets/logos/YelenaInventoryLogo.png',
-              fit: BoxFit.contain,
-            ),
+        SizedBox(
+          width: double.infinity,
+          child: Stack(
+            alignment: AlignmentDirectional.center,
+            children: [
+              Align(
+                alignment: AlignmentDirectional.center,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: SizedBox(
+                    width: width,
+                    child: Image.asset(
+                      'assets/logos/YelenaInventoryLogo.png',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -118,38 +149,6 @@ class _Footer extends StatelessWidget {
     return const Column(
       mainAxisSize: MainAxisSize.min,
       children: [SizedBox(height: 8), _PoweredBy()],
-    );
-  }
-}
-
-class _FloatingBackButton extends StatelessWidget {
-  const _FloatingBackButton();
-
-  @override
-  Widget build(BuildContext context) {
-    final textDirection = Directionality.of(context);
-    final alignment = textDirection == TextDirection.rtl
-        ? Alignment.topRight
-        : Alignment.topLeft;
-
-    return SafeArea(
-      child: Align(
-        alignment: alignment,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: SizedBox(
-            width: 48,
-            height: 48,
-            child: BackButton(
-              style: IconButton.styleFrom(
-                iconSize: 30,
-                minimumSize: const Size(48, 48),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
