@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import 'localization/app_language.dart';
+import 'l10n/app_localizations.dart';
 import 'providers/branch_provider.dart';
 import 'providers/employees_provider.dart';
 import 'providers/inventory_db_provider.dart';
@@ -39,6 +40,8 @@ class YelenaInventoryApp extends ConsumerWidget {
       title: ref.watch(appStringsProvider).appTitle,
       theme: AppTheme.light(),
       locale: Locale(language.code),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       builder: (context, child) {
         return Directionality(
           textDirection: language.textDirection,

@@ -3213,15 +3213,13 @@ String _deactivateEmployeeResultMessage(
 
 String _roleLabel(RoleCode role, AppStrings strings) {
   return switch (role) {
-    RoleCode.developer => strings.isHebrew ? 'מפתח' : 'Developer',
-    RoleCode.systemManager =>
-      strings.isHebrew ? 'מנהל מערכת' : 'System Manager',
-    RoleCode.areaManager => strings.isHebrew ? 'מנהל אזור' : 'Area Manager',
-    RoleCode.branchManager => strings.isHebrew ? 'מנהל סניף' : 'Branch Manager',
-    RoleCode.deputyBranchManager =>
-      strings.isHebrew ? 'סגן מנהל סניף' : 'Deputy Branch Manager',
-    RoleCode.storeEmployee => strings.isHebrew ? 'עובד סניף' : 'Store Employee',
-    RoleCode.viewer => strings.isHebrew ? 'צופה' : 'Viewer',
+    RoleCode.developer => strings.roleDeveloper,
+    RoleCode.systemManager => strings.roleSystemManager,
+    RoleCode.areaManager => strings.roleAreaManager,
+    RoleCode.branchManager => strings.roleBranchManager,
+    RoleCode.deputyBranchManager => strings.roleDeputyBranchManager,
+    RoleCode.storeEmployee => strings.roleStoreEmployee,
+    RoleCode.viewer => strings.roleViewer,
   };
 }
 

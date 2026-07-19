@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
+
 enum AppLanguage {
   he('he', 'עברית', TextDirection.rtl),
-  en('en', 'English', TextDirection.ltr);
+  en('en', 'English', TextDirection.ltr),
+  ru('ru', 'Русский', TextDirection.ltr);
 
   final String code;
   final String label;
@@ -58,437 +61,276 @@ class LanguageNotifier extends Notifier<AppLanguage> {
 class AppStrings {
   final AppLanguage appLanguage;
 
-  const AppStrings(this.appLanguage);
+  AppStrings(this.appLanguage)
+    : _localizations = lookupAppLocalizations(Locale(appLanguage.code));
+
+  final AppLocalizations _localizations;
 
   bool get isHebrew => appLanguage == AppLanguage.he;
 
-  String get appTitle => 'Yelena Inventory';
-  String get settings => isHebrew ? 'הגדרות' : 'Settings';
-  String get settingsSubtitle => isHebrew
-      ? 'ניהול הגדרות ונתוני בסיס של האפליקציה.'
-      : 'Manage application setup and master data.';
-  String get branches => isHebrew ? 'סניפים' : 'Branches';
-  String get employees => isHebrew ? 'עובדים' : 'Employees';
-  String get auditLog => isHebrew ? 'יומן פעילות' : 'Audit Log';
-  String get about => isHebrew ? 'אודות' : 'About';
-  String get aboutSubtitle =>
-      isHebrew ? 'מידע על האפליקציה' : 'Application information';
+  String get appTitle => _localizations.appTitle;
+  String get settings => _localizations.settings;
+  String get settingsSubtitle => _localizations.settingsSubtitle;
+  String get branches => _localizations.branches;
+  String get employees => _localizations.employees;
+  String get auditLog => _localizations.auditLog;
+  String get about => _localizations.about;
+  String get aboutSubtitle => _localizations.aboutSubtitle;
   String get inventoryManagementSystem =>
-      isHebrew ? 'מערכת ניהול מלאי' : 'Inventory Management System';
-  String get version => isHebrew ? 'גרסה' : 'Version';
-  String get build => isHebrew ? 'בנייה' : 'Build';
-  String get language => isHebrew ? 'שפה' : 'Language';
-  String get languageSubtitle =>
-      isHebrew ? 'בחירת שפת הממשק' : 'Choose the application language';
-  String get chooseLanguage => isHebrew ? 'בחר שפה' : 'Choose Language';
-  String get cancel => isHebrew ? 'ביטול' : 'Cancel';
-  String get save => isHebrew ? 'שמור' : 'Save';
-  String get delete => isHebrew ? 'מחק' : 'Delete';
-  String get edit => isHebrew ? 'ערוך' : 'Edit';
-  String get retry => isHebrew ? 'נסה שוב' : 'Retry';
-  String get refresh => isHebrew ? 'רענן' : 'Refresh';
-  String get signOut => isHebrew ? 'התנתקות' : 'Sign out';
-  String get loadingSession =>
-      isHebrew ? 'טוען את פרטי המשתמש...' : 'Loading session...';
-  String get phoneLoginTitle =>
-      isHebrew ? 'כניסה באמצעות טלפון' : 'Sign in with phone';
-  String get phoneLoginSubtitle => isHebrew
-      ? 'הזן את מספר הטלפון כדי לקבל קוד אימות ב-SMS.'
-      : 'Enter your phone number to receive an SMS verification code.';
-  String get phoneLoginExample =>
-      isHebrew ? 'לדוגמה: 050-1234567' : 'Example: 050-1234567';
-  String get sendCode => isHebrew ? 'שלח קוד' : 'Send code';
-  String get otpVerificationTitle =>
-      isHebrew ? 'אימות קוד SMS' : 'Verify SMS code';
-  String otpVerificationSubtitle(String phone) => isHebrew
-      ? 'הזן את הקוד שנשלח אל $phone.'
-      : 'Enter the code sent to $phone.';
-  String get otpCode => isHebrew ? 'קוד אימות' : 'Verification code';
-  String get verifyCode => isHebrew ? 'אמת קוד' : 'Verify code';
-  String get changePhone =>
-      isHebrew ? 'חזרה להזנת טלפון' : 'Change phone number';
-  String get otpCodeRequired => isHebrew
-      ? 'יש להזין קוד אימות בן 6 ספרות.'
-      : 'Enter the 6-digit verification code.';
-  String get invalidPhone =>
-      isHebrew ? 'מספר הטלפון אינו תקין.' : 'The phone number is not valid.';
-  String get otpRequestFailed => isHebrew
-      ? 'לא ניתן לשלוח קוד אימות כרגע.'
-      : 'Could not send a verification code right now.';
-  String get invalidOrExpiredOtp => isHebrew
-      ? 'קוד האימות שגוי או פג תוקף.'
-      : 'The verification code is invalid or expired.';
-  String get rateLimited => isHebrew
-      ? 'בוצעו יותר מדי ניסיונות. נסה שוב מאוחר יותר.'
-      : 'Too many attempts. Please try again later.';
-  String get networkFailure => isHebrew
-      ? 'לא ניתן להתחבר כרגע. בדוק את החיבור לאינטרנט.'
-      : 'Could not connect. Please check your internet connection.';
-  String get authOperationFailed => isHebrew
-      ? 'לא ניתן להשלים את הפעולה כרגע.'
-      : 'Could not complete the operation right now.';
-  String get noActivePermissionTitle =>
-      isHebrew ? 'אין לך כרגע הרשאה פעילה' : 'No active permission';
-  String get noActivePermissionBody => isHebrew
-      ? 'החשבון מאומת, אך לא נמצאה הרשאה פעילה או גישה לסניף. אם זה נראה שגוי, פנה למנהל הסניף.'
-      : 'Your account is authenticated, but no active role or branch access was found. If this looks wrong, contact your branch manager.';
-  String get employeeNotLinkedTitle =>
-      isHebrew ? 'החשבון לא מקושר לעובד' : 'Account not linked';
-  String get employeeNotLinkedBody => isHebrew
-      ? 'הטלפון אומת, אך החשבון עדיין לא מקושר לרשומת עובד במערכת. פנה למנהל כדי להשלים את הקישור.'
-      : 'The phone number was verified, but this account is not linked to an employee record yet. Contact an administrator to complete the link.';
+      _localizations.inventoryManagementSystem;
+  String get version => _localizations.version;
+  String get build => _localizations.build;
+  String get language => _localizations.language;
+  String get languageSubtitle => _localizations.languageSubtitle;
+  String get chooseLanguage => _localizations.chooseLanguage;
+  String get cancel => _localizations.cancel;
+  String get save => _localizations.save;
+  String get delete => _localizations.delete;
+  String get edit => _localizations.edit;
+  String get retry => _localizations.retry;
+  String get refresh => _localizations.refresh;
+  String get signOut => _localizations.signOut;
+  String get loadingSession => _localizations.loadingSession;
+  String get phoneLoginTitle => _localizations.phoneLoginTitle;
+  String get phoneLoginSubtitle => _localizations.phoneLoginSubtitle;
+  String get phoneLoginExample => _localizations.phoneLoginExample;
+  String get sendCode => _localizations.sendCode;
+  String get otpVerificationTitle => _localizations.otpVerificationTitle;
+  String otpVerificationSubtitle(String phone) =>
+      _localizations.otpVerificationSubtitle(phone);
+  String get otpCode => _localizations.otpCode;
+  String get verifyCode => _localizations.verifyCode;
+  String get changePhone => _localizations.changePhone;
+  String get otpCodeRequired => _localizations.otpCodeRequired;
+  String get invalidPhone => _localizations.invalidPhone;
+  String get otpRequestFailed => _localizations.otpRequestFailed;
+  String get invalidOrExpiredOtp => _localizations.invalidOrExpiredOtp;
+  String get rateLimited => _localizations.rateLimited;
+  String get networkFailure => _localizations.networkFailure;
+  String get authOperationFailed => _localizations.authOperationFailed;
+  String get noActivePermissionTitle => _localizations.noActivePermissionTitle;
+  String get noActivePermissionBody => _localizations.noActivePermissionBody;
+  String get employeeNotLinkedTitle => _localizations.employeeNotLinkedTitle;
+  String get employeeNotLinkedBody => _localizations.employeeNotLinkedBody;
   String get employeeLinkingConflictTitle =>
-      isHebrew ? 'העובד כבר מקושר לחשבון אחר' : 'Employee already linked';
-  String get employeeLinkingConflictBody => isHebrew
-      ? 'רשומת העובד המתאימה כבר מקושרת לחשבון אחר. פנה למנהל המערכת.'
-      : 'The matching employee record is already linked to another account. Contact the system administrator.';
-  String get sessionLoadFailedTitle =>
-      isHebrew ? 'לא ניתן לטעון את פרטי המשתמש' : 'Could not load session';
-  String get sessionLoadFailedBody => isHebrew
-      ? 'אירעה תקלה בטעינת פרטי הגישה. נסה שוב או התנתק והתחבר מחדש.'
-      : 'There was a problem loading your access details. Try again, or sign out and sign in again.';
-  String get updateReady => isHebrew ? 'העדכון מוכן' : 'Update ready';
-  String get updateReadyMessage => isHebrew
-      ? 'גרסה חדשה הורדה ומוכנה להתקנה.'
-      : 'A new version has been downloaded and is ready to install.';
-  String get updateAvailable =>
-      isHebrew ? 'גרסה חדשה זמינה' : 'New version available';
-  String get updateAvailableMessage => isHebrew
-      ? 'גרסה חדשה זמינה. האם לעדכן עכשיו?'
-      : 'A new version is available. Do you want to update now?';
-  String get updateNow => isHebrew ? 'עדכן עכשיו' : 'Update now';
-  String get later => isHebrew ? 'אחר כך' : 'Later';
-  String get installUpdate => isHebrew ? 'התקן עדכון' : 'Install update';
-  String get exit => isHebrew ? 'יציאה' : 'Exit';
-  String get exitApplication =>
-      isHebrew ? 'לצאת מהאפליקציה?' : 'Exit application?';
-  String get chooseBranch => isHebrew ? 'בחר סניף' : 'Choose Branch';
-  String get chooseBranchSubtitle => isHebrew
-      ? 'בחר את הסניף שבו מתבצעת ספירת המלאי.'
-      : 'Choose the branch where the inventory count is being performed.';
-  String get loadingBranches =>
-      isHebrew ? 'טוען סניפים...' : 'Loading branches...';
-  String get couldNotLoadBranches => isHebrew
-      ? 'לא הצלחנו לטעון את רשימת הסניפים.'
-      : 'Could not load branches.';
-  String get noBranchesCreated => isHebrew
-      ? 'עדיין לא נוצרו סניפים.'
-      : 'No branches have been created yet.';
-  String get manageBranches => isHebrew ? 'ניהול סניפים' : 'Manage Branches';
-  String get manageBranchesSubtitle => isHebrew
-      ? 'הוסף, ערוך או מחק סניפי חנות.'
-      : 'Add, edit, or remove store branches.';
-  String get noBranchesFound =>
-      isHebrew ? 'לא נמצאו סניפים' : 'No branches found';
-  String get addBranch => isHebrew ? 'הוסף סניף' : 'Add Branch';
-  String get editBranch => isHebrew ? 'ערוך סניף' : 'Edit Branch';
-  String get branchName => isHebrew ? 'שם הסניף' : 'Branch Name';
-  String get branchNameRequired =>
-      isHebrew ? 'שם הסניף הוא שדה חובה.' : 'Branch name is required.';
-  String get branchExists => isHebrew
-      ? 'כבר קיים סניף בשם הזה.'
-      : 'A branch with this name already exists.';
-  String get branchCreated => isHebrew ? 'הסניף נוצר.' : 'Branch created.';
-  String get branchUpdated => isHebrew ? 'הסניף עודכן.' : 'Branch updated.';
-  String get branchDeleted => isHebrew ? 'הסניף נמחק.' : 'Branch deleted.';
-  String get couldNotDeleteBranch =>
-      isHebrew ? 'לא ניתן למחוק את הסניף.' : 'Could not delete this branch.';
-  String get deleteBranchTitle => isHebrew ? 'למחוק סניף?' : 'Delete Branch?';
-  String get deleteLastBranchTitle =>
-      isHebrew ? 'למחוק את הסניף האחרון?' : 'Delete Last Branch?';
+      _localizations.employeeLinkingConflictTitle;
+  String get employeeLinkingConflictBody =>
+      _localizations.employeeLinkingConflictBody;
+  String get sessionLoadFailedTitle => _localizations.sessionLoadFailedTitle;
+  String get sessionLoadFailedBody => _localizations.sessionLoadFailedBody;
+  String get updateReady => _localizations.updateReady;
+  String get updateReadyMessage => _localizations.updateReadyMessage;
+  String get updateAvailable => _localizations.updateAvailable;
+  String get updateAvailableMessage => _localizations.updateAvailableMessage;
+  String get updateNow => _localizations.updateNow;
+  String get later => _localizations.later;
+  String get installUpdate => _localizations.installUpdate;
+  String get exit => _localizations.exit;
+  String get exitApplication => _localizations.exitApplication;
+  String get chooseBranch => _localizations.chooseBranch;
+  String get chooseBranchSubtitle => _localizations.chooseBranchSubtitle;
+  String get loadingBranches => _localizations.loadingBranches;
+  String get couldNotLoadBranches => _localizations.couldNotLoadBranches;
+  String get noBranchesCreated => _localizations.noBranchesCreated;
+  String get manageBranches => _localizations.manageBranches;
+  String get manageBranchesSubtitle => _localizations.manageBranchesSubtitle;
+  String get noBranchesFound => _localizations.noBranchesFound;
+  String get addBranch => _localizations.addBranch;
+  String get editBranch => _localizations.editBranch;
+  String get branchName => _localizations.branchName;
+  String get branchNameRequired => _localizations.branchNameRequired;
+  String get branchExists => _localizations.branchExists;
+  String get branchCreated => _localizations.branchCreated;
+  String get branchUpdated => _localizations.branchUpdated;
+  String get branchDeleted => _localizations.branchDeleted;
+  String get couldNotDeleteBranch => _localizations.couldNotDeleteBranch;
+  String get deleteBranchTitle => _localizations.deleteBranchTitle;
+  String get deleteLastBranchTitle => _localizations.deleteLastBranchTitle;
   String deleteBranchMessage(String name) =>
-      isHebrew ? 'למחוק את הסניף "$name"?' : 'Delete branch "$name"?';
-  String get branchHasEmployeesWarning => isHebrew
-      ? 'בסניף הזה יש עובדים.\n\nמחיקת הסניף תמחק גם את כל העובדים המשויכים אליו.'
-      : 'This branch contains employees.\n\nDeleting the branch will also delete all employees assigned to this branch.';
-  String get lastBranchWarning => isHebrew
-      ? 'זהו הסניף האחרון במערכת.\n\nלאחר המחיקה לא יישארו סניפים.'
-      : 'This is the last branch in the system.\n\nAfter deletion, no branches will remain.';
-  String get lastBranchWithEmployeesWarning => isHebrew
-      ? 'זהו הסניף האחרון במערכת.\n\nלאחר המחיקה לא יישארו סניפים.\n\nבסניף הזה יש עובדים. מחיקתו תמחק גם את כל העובדים המשויכים אליו.'
-      : 'This is the last branch in the system.\n\nAfter deletion, no branches will remain.\n\nThis branch contains employees. Deleting it will also delete all employees assigned to this branch.';
-  String get scanProducts => isHebrew ? 'סריקת מוצרים' : 'Scan Products';
-  String employeeSubtitle(String name) =>
-      isHebrew ? 'עובד: $name' : 'Employee: $name';
-  String get loadingInventory =>
-      isHebrew ? 'טוען ספירת מלאי...' : 'Loading inventory count...';
-  String get barcode => isHebrew ? 'ברקוד' : 'Barcode';
-  String get scanBarcode => isHebrew ? 'סרוק ברקוד' : 'Scan barcode';
-  String get quantity => isHebrew ? 'כמות' : 'Quantity';
-  String get barcodeRequired =>
-      isHebrew ? 'ברקוד הוא שדה חובה.' : 'Barcode is required.';
-  String get quantityRequired =>
-      isHebrew ? 'כמות היא שדה חובה.' : 'Quantity is required.';
-  String get savedSuccessfully =>
-      isHebrew ? 'נשמר בהצלחה.' : 'Saved successfully.';
-  String get couldNotSaveInventory =>
-      isHebrew ? 'לא ניתן היה לשמור את המלאי.' : 'Could not save inventory.';
-  String get inventorySavedImageFailed => isHebrew
-      ? 'המלאי נשמר, אך לא ניתן היה לשמור את תמונת המוצר.'
-      : 'Inventory was saved, but the product image could not be saved.';
-  String get inventoryRecordDeleted =>
-      isHebrew ? 'רשומת המלאי נמחקה.' : 'Inventory record deleted.';
-  String get noInventoryItems =>
-      isHebrew ? 'עדיין אין פריטים בספירה.' : 'No inventory items yet.';
-  String countedProducts(int count) =>
-      isHebrew ? 'נספרו $count מוצרים' : 'Counted $count products';
+      _localizations.deleteBranchMessage(name);
+  String get branchHasEmployeesWarning =>
+      _localizations.branchHasEmployeesWarning;
+  String get lastBranchWarning => _localizations.lastBranchWarning;
+  String get lastBranchWithEmployeesWarning =>
+      _localizations.lastBranchWithEmployeesWarning;
+  String get scanProducts => _localizations.scanProducts;
+  String employeeSubtitle(String name) => _localizations.employeeSubtitle(name);
+  String get loadingInventory => _localizations.loadingInventory;
+  String get barcode => _localizations.barcode;
+  String get scanBarcode => _localizations.scanBarcode;
+  String get quantity => _localizations.quantity;
+  String get barcodeRequired => _localizations.barcodeRequired;
+  String get quantityRequired => _localizations.quantityRequired;
+  String get savedSuccessfully => _localizations.savedSuccessfully;
+  String get couldNotSaveInventory => _localizations.couldNotSaveInventory;
+  String get inventorySavedImageFailed =>
+      _localizations.inventorySavedImageFailed;
+  String get inventoryRecordDeleted => _localizations.inventoryRecordDeleted;
+  String get noInventoryItems => _localizations.noInventoryItems;
+  String countedProducts(int count) => _localizations.countedProducts(count);
   String get deleteInventoryRecordTitle =>
-      isHebrew ? 'למחוק רשומת מלאי?' : 'Delete Inventory Record?';
-  String get actionCannotBeUndone => isHebrew
-      ? 'אי אפשר לבטל את הפעולה הזו.'
-      : 'This action cannot be undone.';
-  String get editInventoryRecord =>
-      isHebrew ? 'עריכת רשומת מלאי' : 'Edit Inventory Record';
-  String get noProductImage => isHebrew ? 'אין תמונת מוצר' : 'No product image';
-  String get addProductImage =>
-      isHebrew ? 'הוסף תמונת מוצר' : 'Add Product Image';
-  String get replaceProductImage =>
-      isHebrew ? 'החלף תמונת מוצר' : 'Replace Product Image';
-  String get deleteProductImage =>
-      isHebrew ? 'מחק תמונת מוצר' : 'Delete Product Image';
-  String get deleteProductImageTitle =>
-      isHebrew ? 'למחוק תמונת מוצר?' : 'Delete Product Image?';
-  String get takePhoto => isHebrew ? 'צלם תמונה' : 'Take Photo';
-  String get chooseFromGallery =>
-      isHebrew ? 'בחר מהגלריה' : 'Choose from Gallery';
-  String get loadingEmployees =>
-      isHebrew ? 'טוען עובדים...' : 'Loading employees...';
-  String get couldNotLoadEmployees =>
-      isHebrew ? 'לא הצלחנו לטעון עובדים.' : 'Could not load employees.';
-  String get noEmployeesInBranch =>
-      isHebrew ? 'אין עובדים בסניף הזה.' : 'No employees in this branch.';
+      _localizations.deleteInventoryRecordTitle;
+  String get actionCannotBeUndone => _localizations.actionCannotBeUndone;
+  String get editInventoryRecord => _localizations.editInventoryRecord;
+  String get noProductImage => _localizations.noProductImage;
+  String get addProductImage => _localizations.addProductImage;
+  String get replaceProductImage => _localizations.replaceProductImage;
+  String get deleteProductImage => _localizations.deleteProductImage;
+  String get deleteProductImageTitle => _localizations.deleteProductImageTitle;
+  String get takePhoto => _localizations.takePhoto;
+  String get chooseFromGallery => _localizations.chooseFromGallery;
+  String get loadingEmployees => _localizations.loadingEmployees;
+  String get couldNotLoadEmployees => _localizations.couldNotLoadEmployees;
+  String get noEmployeesInBranch => _localizations.noEmployeesInBranch;
   String get addEmployeesFromSettings =>
-      isHebrew ? 'הוסף עובדים מההגדרות.' : 'Add employees from Settings.';
-  String get chooseEmployee => isHebrew ? 'בחר עובד' : 'Choose Employee';
-  String get chooseEmployeeSubtitle => isHebrew
-      ? 'בחר מי מבצע את ספירת המלאי.'
-      : 'Choose who is performing the inventory count.';
-  String get continueLabel => isHebrew ? 'המשך' : 'Continue';
-  String get manageEmployees => isHebrew ? 'ניהול עובדים' : 'Manage Employees';
-  String get manageEmployeesSubtitle => isHebrew
-      ? 'נהל עובדים לפי סניף.'
-      : 'Create and maintain employees by branch.';
-  String get companyEmployees => isHebrew ? 'עובדי החברה' : 'Company Employees';
-  String get companyEmployeesSubtitle => isHebrew
-      ? 'ספריית עובדים לקריאה בלבד לפי מודל התפקידים.'
-      : 'Read-only employee directory based on role assignments.';
-  String get employeeDetails => isHebrew ? 'פרטי עובד' : 'Employee Details';
-  String get identity => isHebrew ? 'זהות' : 'Identity';
-  String get employeeCode => isHebrew ? 'מספר עובד' : 'Employee Code';
-  String get fullName => isHebrew ? 'שם מלא' : 'Full Name';
-  String get status => isHebrew ? 'סטטוס' : 'Status';
-  String get active => isHebrew ? 'פעיל' : 'Active';
-  String get inactive => isHebrew ? 'לא פעיל' : 'Inactive';
-  String get authStatus => isHebrew ? 'סטטוס התחברות' : 'Auth Status';
-  String get linked => isHebrew ? 'מקושר' : 'Linked';
-  String get notLinked => isHebrew ? 'לא מקושר' : 'Not linked';
-  String get effectiveRoles => isHebrew ? 'תפקידים פעילים' : 'Effective Roles';
-  String get noEffectiveRoles =>
-      isHebrew ? 'אין תפקידים פעילים.' : 'No effective roles.';
-  String get accessibleBranches =>
-      isHebrew ? 'סניפים נגישים' : 'Accessible Branches';
-  String get accessibleAreas => isHebrew ? 'אזורים נגישים' : 'Accessible Areas';
-  String get noAccessibleBranches =>
-      isHebrew ? 'אין סניפים נגישים.' : 'No accessible branches.';
-  String get noAccessibleAreas =>
-      isHebrew ? 'אין אזורים נגישים.' : 'No accessible areas.';
-  String get validity => isHebrew ? 'תוקף' : 'Validity';
-  String get alwaysValid => isHebrew ? 'ללא מגבלת זמן' : 'No time limit';
-  String get noCompanyEmployees =>
-      isHebrew ? 'עדיין אין עובדים בחברה.' : 'No company employees yet.';
-  String get createEmployee => isHebrew ? 'צור עובד' : 'Create Employee';
-  String get employeeName => isHebrew ? 'שם עובד' : 'Employee Name';
-  String get employeeNameRequired =>
-      isHebrew ? 'שם עובד הוא שדה חובה.' : 'Employee name is required.';
-  String get selectRole => isHebrew ? 'בחר תפקיד' : 'Select Role';
-  String get selectBranch => isHebrew ? 'בחר סניף' : 'Select Branch';
-  String get selectArea => isHebrew ? 'בחר אזור' : 'Select Area';
-  String get scope => isHebrew ? 'סקופ' : 'Scope';
-  String get validFrom => isHebrew ? 'תקף מ' : 'Valid from';
-  String get validUntil => isHebrew ? 'תקף עד' : 'Valid until';
-  String get validUntilRequired =>
-      isHebrew ? 'יש לבחור תאריך סיום.' : 'Valid until is required.';
-  String get validUntilAfterFrom => isHebrew
-      ? 'תאריך הסיום חייב להיות אחרי תאריך ההתחלה.'
-      : 'Valid until must be after valid from.';
-  String get review => isHebrew ? 'סקירה' : 'Review';
-  String get create => isHebrew ? 'צור' : 'Create';
-  String get back => isHebrew ? 'חזרה' : 'Back';
-  String get next => isHebrew ? 'הבא' : 'Next';
-  String get duplicatePhone => isHebrew
-      ? 'כבר קיים עובד עם מספר הטלפון הזה.'
-      : 'An employee with this phone number already exists.';
-  String get duplicateEmployeeCode => isHebrew
-      ? 'כבר קיים עובד עם מספר העובד הזה.'
-      : 'An employee with this employee code already exists.';
-  String get unauthorized => isHebrew
-      ? 'אין לך הרשאה לבצע את הפעולה הזו.'
-      : 'You are not authorized to perform this action.';
-  String get invalidScope =>
-      isHebrew ? 'הסקופ שנבחר אינו תקין.' : 'The selected scope is invalid.';
-  String get invalidRole =>
-      isHebrew ? 'התפקיד שנבחר אינו תקין.' : 'The selected role is invalid.';
-  String get employeeCreationFailed => isHebrew
-      ? 'לא ניתן ליצור את העובד כרגע.'
-      : 'Could not create the employee right now.';
-  String get employeeCreatedWithRole => isHebrew
-      ? 'העובד נוצר עם תפקיד ראשוני.'
-      : 'Employee created with first role assignment.';
-  String get addRole => isHebrew ? 'הוסף תפקיד' : 'Add Role';
-  String get editAssignment => isHebrew ? 'עריכת שיוך' : 'Edit Assignment';
-  String get createAssignment =>
-      isHebrew ? 'צור שיוך תפקיד' : 'Create Assignment';
-  String get assignmentCreated =>
-      isHebrew ? 'שיוך התפקיד נוצר.' : 'Role assignment created.';
-  String get assignmentUpdated =>
-      isHebrew ? 'השיוך עודכן.' : 'Assignment updated.';
-  String get noAssignmentChanges =>
-      isHebrew ? 'לא בוצעו שינויים.' : 'No changes were made.';
-  String get duplicateAssignment => isHebrew
-      ? 'כבר קיים שיוך תפקיד זהה לעובד הזה.'
-      : 'This employee already has the same role assignment.';
-  String get overlappingAssignment => isHebrew
-      ? 'קיים כבר שיוך חופף לעובד הזה.'
-      : 'This employee already has an overlapping assignment.';
-  String get invalidValidity => isHebrew
-      ? 'טווח התוקף שנבחר אינו תקין.'
-      : 'The selected validity period is invalid.';
-  String get selfManagementNotAllowed => isHebrew
-      ? 'לא ניתן לנהל תפקידים עבור עצמך.'
-      : 'You cannot manage your own role assignments.';
-  String get protectedRole => isHebrew
-      ? 'לא ניתן לשנות תפקיד מוגן מהמסך הזה.'
-      : 'This protected role cannot be changed from this screen.';
-  String get assignmentEmployeeNotFound => isHebrew
-      ? 'לא נמצא העובד עבור שיוך התפקיד.'
-      : 'The employee could not be found for this assignment.';
-  String get assignmentEmployeeInactive => isHebrew
-      ? 'לא ניתן להוסיף תפקיד לעובד לא פעיל.'
-      : 'Cannot add a role assignment to an inactive employee.';
-  String get assignmentCreationFailed => isHebrew
-      ? 'לא ניתן ליצור את שיוך התפקיד כרגע.'
-      : 'Could not create the role assignment right now.';
-  String get assignmentUpdateFailed => isHebrew
-      ? 'לא ניתן לעדכן את השיוך כרגע.'
-      : 'Could not update the assignment right now.';
-  String get endRole => isHebrew ? 'בטל שיוך' : 'Cancel Assignment';
-  String get endRoleAssignment => isHebrew ? 'ביטול שיוך' : 'Cancel Assignment';
-  String get endRoleAssignmentMessage => isHebrew
-      ? 'השיוך לא יהיה פעיל יותר. העובד לא יימחק, והמידע ההיסטורי יישאר זמין ביומני המערכת. אם זהו השיוך הפעיל האחרון של העובד, ייתכן שהוא יאבד גישה למערכת.'
-      : 'This assignment will no longer be active. The employee will not be deleted, and historical information remains available in system logs. If this is the employee\'s final active assignment, they may lose access to the app.';
-  String get roleEndedSuccessfully =>
-      isHebrew ? 'השיוך בוטל.' : 'Assignment canceled.';
-  String get roleAssignmentAlreadyEnded => isHebrew
-      ? 'השיוך כבר אינו פעיל.'
-      : 'This assignment is already inactive.';
-  String get roleAssignmentNotFound => isHebrew
-      ? 'שיוך התפקיד לא נמצא.'
-      : 'The role assignment could not be found.';
-  String get invalidEndTime =>
-      isHebrew ? 'זמן הביטול אינו תקין.' : 'The cancellation time is invalid.';
-  String get endRoleAssignmentFailed => isHebrew
-      ? 'לא ניתן לבטל את השיוך כרגע.'
-      : 'Could not cancel the assignment right now.';
-  String get currentRoles => isHebrew ? 'תפקידים נוכחיים' : 'Current Roles';
-  String get roleHistory => isHebrew ? 'היסטוריית תפקידים' : 'Role History';
-  String get effective => isHebrew ? 'פעיל עכשיו' : 'Effective';
-  String get future => isHebrew ? 'עתידי' : 'Future';
-  String get expired => isHebrew ? 'פג תוקף' : 'Expired';
-  String get ended => isHebrew ? 'הסתיים' : 'Ended';
-  String get currentBranch => isHebrew ? 'סניף נוכחי' : 'Current Branch';
-  String get switchBranch => isHebrew ? 'החלף סניף' : 'Switch Branch';
-  String get branchSwitchFailed => isHebrew
-      ? 'לא ניתן להחליף סניף כרגע.'
-      : 'Could not switch branch right now.';
-  String get noScopeRequired => isHebrew
-      ? 'לא נדרש סקופ לתפקיד הזה.'
-      : 'No scope is required for this role.';
-  String get branch => isHebrew ? 'סניף' : 'Branch';
-  String get area => isHebrew ? 'אזור' : 'Area';
-  String get addEmployee => isHebrew ? 'הוסף עובד' : 'Add Employee';
-  String get editEmployee => isHebrew ? 'ערוך עובד' : 'Edit Employee';
-  String get manageAssignments =>
-      isHebrew ? 'ניהול שיוכים' : 'Manage Assignments';
-  String get deleteEmployee => isHebrew ? 'מחיקת עובד' : 'Delete Employee';
-  String get deleteEmployeeConfirmationMessage => isHebrew
-      ? 'מחיקת העובד תבצע את הפעולות הבאות:\n\n'
-            '• תסיר גישה למערכת אם לא יישארו שיוכים פעילים\n'
-            '• תבטל כל שיוך פעיל שהמשתמש המחובר מורשה לנהל\n'
-            '• תשאיר שיוכים גבוהים או מקבילים ללא שינוי אם אין הרשאה לנהל אותם\n'
-            '• תשמור את כל הרשומות ההיסטוריות ומידע הביקורת\n\n'
-            'לא ניתן לבטל פעולה זו.'
-      : 'Deleting this employee will:\n\n'
-            '• remove system access if no active assignments remain\n'
-            '• cancel every active assignment the authenticated actor is authorized to manage\n'
-            '• keep unauthorized higher or sideways assignments active\n'
-            '• keep all historical records and audit information\n\n'
-            'This action cannot be undone.';
-  String get employeeDeactivated => isHebrew
-      ? 'לא נשארו לעובד שיוכים פעילים והעובד הושבת.'
-      : 'The employee has no active assignments remaining and was deactivated.';
-  String get employeePartiallyDeactivated => isHebrew
-      ? 'שיוך אחד או יותר בוטלו, אך העובד נשאר פעיל כי קיימים שיוכים נוספים.'
-      : 'One or more authorized assignments were ended, but the employee remains active because other assignments remain.';
-  String get employeeNothingToDeactivate => isHebrew
-      ? 'לא בוצע שינוי והעובד נשאר פעיל.'
-      : 'No assignment was changed and the employee remains active.';
-  String get employeeNotFound =>
-      isHebrew ? 'העובד לא נמצא.' : 'The employee does not exist.';
-  String get employeeAlreadyInactive =>
-      isHebrew ? 'העובד כבר לא פעיל.' : 'The employee is already inactive.';
-  String get employeeDeactivateUnauthorized => isHebrew
-      ? 'אין לך הרשאה למחוק את העובד.'
-      : 'The authenticated user is not authorized.';
-  String get employeeDeactivateFailed => isHebrew
-      ? 'לא ניתן למחוק את העובד כרגע.'
-      : 'Could not delete the employee right now.';
-  String get firstName => isHebrew ? 'שם פרטי' : 'First Name';
-  String get lastName => isHebrew ? 'שם משפחה' : 'Last Name';
-  String get phoneNumber => isHebrew ? 'מספר טלפון' : 'Phone Number';
-  String get firstNameRequired =>
-      isHebrew ? 'שם פרטי הוא שדה חובה.' : 'First name is required.';
-  String get lastNameRequired =>
-      isHebrew ? 'שם משפחה הוא שדה חובה.' : 'Last name is required.';
-  String get phoneRequired =>
-      isHebrew ? 'מספר טלפון הוא שדה חובה.' : 'Phone number is required.';
-  String get phoneDigitsOnly => isHebrew
-      ? 'מספר טלפון יכול להכיל ספרות בלבד.'
-      : 'Phone must contain digits only.';
-  String get employeeExists => isHebrew
-      ? 'כבר קיים עובד בשם הזה בסניף.'
-      : 'An employee with this name already exists here.';
-  String get employeeCreated => isHebrew ? 'העובד נוצר.' : 'Employee created.';
-  String get employeeUpdated => isHebrew ? 'העובד עודכן.' : 'Employee updated.';
-  String get employeeUpdateFailed => isHebrew
-      ? 'לא ניתן לעדכן את העובד כרגע.'
-      : 'Could not update the employee right now.';
-  String get employeeDeleted => isHebrew ? 'העובד נמחק.' : 'Employee deleted.';
-  String get couldNotDeleteEmployee =>
-      isHebrew ? 'לא ניתן למחוק את העובד.' : 'Could not delete this employee.';
-  String get deleteEmployeeTitle =>
-      isHebrew ? 'למחוק עובד?' : 'Delete Employee?';
+      _localizations.addEmployeesFromSettings;
+  String get chooseEmployee => _localizations.chooseEmployee;
+  String get chooseEmployeeSubtitle => _localizations.chooseEmployeeSubtitle;
+  String get continueLabel => _localizations.continueLabel;
+  String get manageEmployees => _localizations.manageEmployees;
+  String get manageEmployeesSubtitle => _localizations.manageEmployeesSubtitle;
+  String get companyEmployees => _localizations.companyEmployees;
+  String get companyEmployeesSubtitle =>
+      _localizations.companyEmployeesSubtitle;
+  String get employeeDetails => _localizations.employeeDetails;
+  String get identity => _localizations.identity;
+  String get employeeCode => _localizations.employeeCode;
+  String get fullName => _localizations.fullName;
+  String get status => _localizations.status;
+  String get active => _localizations.active;
+  String get inactive => _localizations.inactive;
+  String get authStatus => _localizations.authStatus;
+  String get linked => _localizations.linked;
+  String get notLinked => _localizations.notLinked;
+  String get effectiveRoles => _localizations.effectiveRoles;
+  String get noEffectiveRoles => _localizations.noEffectiveRoles;
+  String get accessibleBranches => _localizations.accessibleBranches;
+  String get accessibleAreas => _localizations.accessibleAreas;
+  String get noAccessibleBranches => _localizations.noAccessibleBranches;
+  String get noAccessibleAreas => _localizations.noAccessibleAreas;
+  String get validity => _localizations.validity;
+  String get alwaysValid => _localizations.alwaysValid;
+  String get noCompanyEmployees => _localizations.noCompanyEmployees;
+  String get createEmployee => _localizations.createEmployee;
+  String get employeeName => _localizations.employeeName;
+  String get employeeNameRequired => _localizations.employeeNameRequired;
+  String get selectRole => _localizations.selectRole;
+  String get selectBranch => _localizations.selectBranch;
+  String get selectArea => _localizations.selectArea;
+  String get scope => _localizations.scope;
+  String get validFrom => _localizations.validFrom;
+  String get validUntil => _localizations.validUntil;
+  String get validUntilRequired => _localizations.validUntilRequired;
+  String get validUntilAfterFrom => _localizations.validUntilAfterFrom;
+  String get review => _localizations.review;
+  String get create => _localizations.create;
+  String get back => _localizations.back;
+  String get next => _localizations.next;
+  String get duplicatePhone => _localizations.duplicatePhone;
+  String get duplicateEmployeeCode => _localizations.duplicateEmployeeCode;
+  String get unauthorized => _localizations.unauthorized;
+  String get invalidScope => _localizations.invalidScope;
+  String get invalidRole => _localizations.invalidRole;
+  String get employeeCreationFailed => _localizations.employeeCreationFailed;
+  String get employeeCreatedWithRole => _localizations.employeeCreatedWithRole;
+  String get addRole => _localizations.addRole;
+  String get editAssignment => _localizations.editAssignment;
+  String get createAssignment => _localizations.createAssignment;
+  String get assignmentCreated => _localizations.assignmentCreated;
+  String get assignmentUpdated => _localizations.assignmentUpdated;
+  String get noAssignmentChanges => _localizations.noAssignmentChanges;
+  String get duplicateAssignment => _localizations.duplicateAssignment;
+  String get overlappingAssignment => _localizations.overlappingAssignment;
+  String get invalidValidity => _localizations.invalidValidity;
+  String get selfManagementNotAllowed =>
+      _localizations.selfManagementNotAllowed;
+  String get protectedRole => _localizations.protectedRole;
+  String get assignmentEmployeeNotFound =>
+      _localizations.assignmentEmployeeNotFound;
+  String get assignmentEmployeeInactive =>
+      _localizations.assignmentEmployeeInactive;
+  String get assignmentCreationFailed =>
+      _localizations.assignmentCreationFailed;
+  String get assignmentUpdateFailed => _localizations.assignmentUpdateFailed;
+  String get endRole => _localizations.endRole;
+  String get endRoleAssignment => _localizations.endRoleAssignment;
+  String get endRoleAssignmentMessage =>
+      _localizations.endRoleAssignmentMessage;
+  String get roleEndedSuccessfully => _localizations.roleEndedSuccessfully;
+  String get roleAssignmentAlreadyEnded =>
+      _localizations.roleAssignmentAlreadyEnded;
+  String get roleAssignmentNotFound => _localizations.roleAssignmentNotFound;
+  String get invalidEndTime => _localizations.invalidEndTime;
+  String get endRoleAssignmentFailed => _localizations.endRoleAssignmentFailed;
+  String get currentRoles => _localizations.currentRoles;
+  String get roleHistory => _localizations.roleHistory;
+  String get effective => _localizations.effective;
+  String get future => _localizations.future;
+  String get expired => _localizations.expired;
+  String get ended => _localizations.ended;
+  String get currentBranch => _localizations.currentBranch;
+  String get switchBranch => _localizations.switchBranch;
+  String get branchSwitchFailed => _localizations.branchSwitchFailed;
+  String get noScopeRequired => _localizations.noScopeRequired;
+  String get branch => _localizations.branch;
+  String get area => _localizations.area;
+  String get addEmployee => _localizations.addEmployee;
+  String get editEmployee => _localizations.editEmployee;
+  String get manageAssignments => _localizations.manageAssignments;
+  String get deleteEmployee => _localizations.deleteEmployee;
+  String get deleteEmployeeConfirmationMessage =>
+      _localizations.deleteEmployeeConfirmationMessage;
+  String get employeeDeactivated => _localizations.employeeDeactivated;
+  String get employeePartiallyDeactivated =>
+      _localizations.employeePartiallyDeactivated;
+  String get employeeNothingToDeactivate =>
+      _localizations.employeeNothingToDeactivate;
+  String get employeeNotFound => _localizations.employeeNotFound;
+  String get employeeAlreadyInactive => _localizations.employeeAlreadyInactive;
+  String get employeeDeactivateUnauthorized =>
+      _localizations.employeeDeactivateUnauthorized;
+  String get employeeDeactivateFailed =>
+      _localizations.employeeDeactivateFailed;
+  String get firstName => _localizations.firstName;
+  String get lastName => _localizations.lastName;
+  String get phoneNumber => _localizations.phoneNumber;
+  String get firstNameRequired => _localizations.firstNameRequired;
+  String get lastNameRequired => _localizations.lastNameRequired;
+  String get phoneRequired => _localizations.phoneRequired;
+  String get phoneDigitsOnly => _localizations.phoneDigitsOnly;
+  String get employeeExists => _localizations.employeeExists;
+  String get employeeCreated => _localizations.employeeCreated;
+  String get employeeUpdated => _localizations.employeeUpdated;
+  String get employeeUpdateFailed => _localizations.employeeUpdateFailed;
+  String get employeeDeleted => _localizations.employeeDeleted;
+  String get couldNotDeleteEmployee => _localizations.couldNotDeleteEmployee;
+  String get deleteEmployeeTitle => _localizations.deleteEmployeeTitle;
   String deleteEmployeeMessage(String name) =>
-      isHebrew ? 'למחוק את העובד\n$name?' : 'Delete employee\n$name?';
-  String get loadingAuditLog =>
-      isHebrew ? 'טוען יומן פעילות...' : 'Loading audit log...';
-  String get couldNotLoadAuditLog => isHebrew
-      ? 'לא הצלחנו לטעון את יומן הפעילות.'
-      : 'Could not load audit log.';
-  String get auditLogSubtitle => isHebrew
-      ? 'סקירת פעולות חשובות באפליקציה.'
-      : 'Review important actions performed in the app.';
-  String get noLogsYet => isHebrew ? 'עדיין אין רישומים.' : 'No logs yet.';
-  String get all => isHebrew ? 'הכל' : 'All';
-  String get today => isHebrew ? 'היום' : 'Today';
-  String get thisWeek => isHebrew ? 'השבוע' : 'This Week';
-  String get inventory => isHebrew ? 'מלאי' : 'Inventory';
-  String get close => isHebrew ? 'סגור' : 'Close';
-  String get pointCameraAtBarcode =>
-      isHebrew ? 'כוון את המצלמה לברקוד' : 'Point the camera at a barcode';
-  String get cameraPermissionRequired => isHebrew
-      ? 'נדרשת הרשאת מצלמה כדי לסרוק ברקודים.'
-      : 'Camera permission is required to scan barcodes.';
-  String get cameraUnavailable => isHebrew
-      ? 'סריקת מצלמה אינה זמינה במכשיר הזה.'
-      : 'Camera scanning is not available on this device.';
+      _localizations.deleteEmployeeMessage(name);
+  String get loadingAuditLog => _localizations.loadingAuditLog;
+  String get couldNotLoadAuditLog => _localizations.couldNotLoadAuditLog;
+  String get auditLogSubtitle => _localizations.auditLogSubtitle;
+  String get noLogsYet => _localizations.noLogsYet;
+  String get all => _localizations.all;
+  String get today => _localizations.today;
+  String get thisWeek => _localizations.thisWeek;
+  String get inventory => _localizations.inventory;
+  String get close => _localizations.close;
+  String get pointCameraAtBarcode => _localizations.pointCameraAtBarcode;
+  String get cameraPermissionRequired =>
+      _localizations.cameraPermissionRequired;
+  String get cameraUnavailable => _localizations.cameraUnavailable;
+  String get settingsBranchesSubtitle =>
+      _localizations.settingsBranchesSubtitle;
+  String get settingsEmployeesSubtitle =>
+      _localizations.settingsEmployeesSubtitle;
+  String get settingsAuditLogSubtitle =>
+      _localizations.settingsAuditLogSubtitle;
+  String get roleDeveloper => _localizations.roleDeveloper;
+  String get roleSystemManager => _localizations.roleSystemManager;
+  String get roleAreaManager => _localizations.roleAreaManager;
+  String get roleBranchManager => _localizations.roleBranchManager;
+  String get roleDeputyBranchManager => _localizations.roleDeputyBranchManager;
+  String get roleStoreEmployee => _localizations.roleStoreEmployee;
+  String get roleViewer => _localizations.roleViewer;
 }

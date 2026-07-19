@@ -46,11 +46,7 @@ class SettingsScreen extends ConsumerWidget {
                     strings.branches,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  subtitle: Text(
-                    strings.isHebrew
-                        ? 'יצירה, עריכה ומחיקה של סניפים'
-                        : 'Create, edit, and delete branches',
-                  ),
+                  subtitle: Text(strings.settingsBranchesSubtitle),
                   trailing: const Icon(Icons.chevron_right),
                 ),
               ),
@@ -69,11 +65,7 @@ class SettingsScreen extends ConsumerWidget {
                     strings.employees,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  subtitle: Text(
-                    strings.isHebrew
-                        ? 'יצירה, עריכה ומחיקה של עובדים'
-                        : 'Create, edit, and delete employees',
-                  ),
+                  subtitle: Text(strings.settingsEmployeesSubtitle),
                   trailing: const Icon(Icons.chevron_right),
                 ),
               ),
@@ -90,11 +82,7 @@ class SettingsScreen extends ConsumerWidget {
                     strings.auditLog,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  subtitle: Text(
-                    strings.isHebrew
-                        ? 'סקירת פעולות חשובות באפליקציה'
-                        : 'Review important app activity',
-                  ),
+                  subtitle: Text(strings.settingsAuditLogSubtitle),
                   trailing: const Icon(Icons.chevron_right),
                 ),
               ),
