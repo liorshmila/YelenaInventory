@@ -1,196 +1,156 @@
-# Yelena Inventory Architecture
+# Yelena Inventory System Design Handbook
 
 ## Purpose
 
-Yelena Inventory is designed as a long-term inventory management platform that prioritizes simplicity, consistency, correctness, and maintainability over excessive configurability.
+This handbook is the architectural source of truth for Yelena Inventory.
+It defines the permanent business and technical principles that guide the
+Flutter application, Supabase backend, database design, security model, and
+future implementation work.
 
-The purpose of this architecture is to define the permanent design principles of the system so that every future development decision remains consistent with the overall vision.
+The handbook is a living specification. When a completed feature changes the
+implemented architecture or current implementation status, the handbook must be
+updated to remain accurate.
 
-This document acts as the architectural source of truth for the project.
+## Document Status Convention
 
-Whenever implementation details conflict with this architecture, the architecture takes precedence until an explicit architectural decision changes it.
+The handbook distinguishes between three kinds of statements:
 
----
+- **Implemented**: verified in the repository or in the approved backend
+  contract used by the current release.
+- **Partial**: implemented in one layer or module, but not complete across the
+  whole system.
+- **Planned**: approved architecture or future work that is not yet complete.
 
-# Design Philosophy
+Permanent architectural principles are not release notes. They describe how the
+system must continue to behave even as implementation details evolve.
 
-The system is intentionally opinionated.
+## Current Implementation Baseline - v0.4.0
 
-Rather than providing unlimited configuration options, the application implements a carefully designed operational model based on proven business workflows.
+The current approved Google Play closed-testing release is:
 
-This philosophy reduces complexity, minimizes user errors, simplifies maintenance, and produces a predictable user experience.
+- Semantic version: `0.4.0`
+- Flutter/Android build number: `16`
+- Git tag: `v0.4.0`
+- Distribution status: Google Play closed-testing track
 
----
+This does not imply a public production rollout.
 
-# Core Principles
+Verified implementation facts for this baseline include:
 
-## 1. One Source of Truth
+- Supabase is initialized from compile-time dart-defines.
+- Phone authentication is performed through Supabase Auth.
+- Flutter requests SMS OTPs with `signInWithOtp`.
+- Flutter verifies SMS OTPs with `verifyOTP` and `OtpType.sms`.
+- OTP generation and SMS delivery are handled by Supabase Auth and its
+  configured SMS provider, not by Flutter.
+- Authenticated users are linked to employees through the
+  `link_authenticated_employee` RPC.
+- Existing authenticated sessions are restored through the Auth/session gate.
+- Branch CRUD, Employee Management, Role Assignment Management, operational
+  inventory, product images, and Current Session flows are Supabase-backed in
+  the current application architecture.
+- Local Drift storage still exists for legacy/local modules and controlled
+  fallback behavior, but it is not authoritative for the final server-first
+  architecture.
+- Release AABs must be built through the repository release script so required
+  Supabase dart-defines are included.
+
+## Core Principles
+
+### One Source of Truth
 
 Every business fact must have exactly one authoritative source.
 
 Examples:
 
-- Role assignments determine employee permissions.
-- Audit logs determine historical actions.
 - Employee records represent people.
+- Role Assignments determine responsibilities, branch access, and operational
+  permissions.
 - Branch records represent physical locations.
+- Product records represent inventory items.
+- Inventory Counts represent count events.
+- Audit records preserve history.
 
-Business information must never be duplicated unless there is a measurable architectural benefit.
+Business information must not be duplicated unless the architecture explicitly
+requires a cache or derived read model.
 
----
+### Server First
 
-## 2. Server First
+Supabase and the central database are the authoritative source of business
+facts.
 
-The server is always the authoritative data source.
+Local storage may be used for:
 
-Local storage exists only for:
+- caching,
+- device performance,
+- controlled offline fallback,
+- legacy compatibility during migration.
 
-- Caching
-- Performance optimization
+Offline or cached data must never become the source of truth. If offline support
+is introduced, it must reconcile with the server.
 
-Offline operation is not supported. Without a network connection, the application must not operate.
+### Fixed Business Model
 
-Business logic must never depend on local persistence.
+Yelena Inventory intentionally implements a fixed business model:
 
----
+- fixed system roles,
+- fixed permission vocabulary,
+- one Current Branch during operational work,
+- one product per barcode,
+- one image per product,
+- event-based inventory counts,
+- append-only audit intent,
+- soft deletion through `is_active`.
 
-## 3. Fixed Business Model
+The application is not intended to become a generic ERP platform.
 
-The application intentionally implements a fixed business model.
+### Authentication, Authorization, and Context Are Separate
 
-Examples:
+- Authentication answers who the user is.
+- Authorization answers what the user may do.
+- Current Branch answers where the user is currently working.
 
-- Fixed system roles
-- Fixed permission model
-- Fixed authentication workflow
+These responsibilities must not be merged.
 
-The system is not intended to become a generic ERP platform.
+### UI Permissions Are Not Security Boundaries
 
----
+Flutter evaluates permissions for presentation, navigation, and user
+experience. Sensitive business mutations must also be validated server-side.
 
-## 4. Simplicity over Flexibility
+### Simplicity Over Flexibility
 
-Whenever two solutions provide equivalent business value, the simpler solution must always be preferred.
+When two solutions provide equivalent business value, the simpler solution is
+preferred.
 
-Complexity must always justify itself.
+Complexity must justify itself.
 
----
-
-## 5. One Logic for Everyone
-
-Every authenticated user follows the same application workflow.
-
-Differences between users are expressed through permissions rather than different application behavior.
-
-Examples:
-
-- Every user works inside one Current Branch.
-- Every screen follows identical navigation.
-- Permissions determine visibility and available actions.
-
----
-
-## 6. Single Source of Permissions
-
-Permissions are derived exclusively from active role assignments.
-
-No duplicate permission structures exist.
-
-No dynamic permission editor exists.
-
----
-
-## 7. Business Rules Live in Code
-
-The database stores business facts.
-
-The application implements business behavior.
-
-Permission evaluation, workflow rules, and UI decisions belong to application code.
-
----
-
-## 8. Audit First
-
-Administrative actions should always be traceable.
-
-Historical information belongs inside the audit system rather than duplicated throughout operational tables.
-
----
-
-## 9. Long-Term Maintainability
-
-The architecture always favors maintainability over short-term implementation convenience.
-
-Future developers should be able to understand the system without tribal knowledge.
-
----
-
-# Architectural Scope
-
-This documentation covers:
-
-- Domain model
-- Database architecture
-- Authentication
-- Roles
-- Permissions
-- Audit
-- Branch model
-- Employee model
-- Future expansion principles
-
----
-
-# Recommended Repository Structure
-
-```text
-docs/
-    system-design/
-    adr/
-
-database/
-
-lib/
-```
-
----
-
-# Handbook Contents
+## Handbook Contents
 
 | Document | Purpose |
-|----------|---------|
-| README | Architectural philosophy and guiding principles |
-| 01 – Domain Model | Business domain and core entities |
-| 02 – Roles & Permissions | Authorization model |
-| 03 – Authentication | Identity architecture |
-| 04 – Audit System | Historical investigation model |
-| 05 – Database Design | Target database architecture |
-| 06 – Development Guidelines | Development standards |
-| 07 – Security Roadmap | Planned security evolution |
+| --- | --- |
+| `README.md` | Architecture overview and current baseline |
+| `01-domain-model.md` | Technology-independent business domain |
+| `02-roles-and-permissions.md` | Authorization model |
+| `03-authentication.md` | Supabase Auth and identity model |
+| `04-audit-system.md` | Audit principles and implementation status |
+| `05-database-design.md` | Database and server-operation design |
+| `06-development-guidelines.md` | Development and release standards |
+| `07-security-roadmap.md` | Implemented, partial, and planned security work |
 
----
+## ADR Relationship
 
-# ADR Relationship
+System Design documents describe how the system works.
 
-System Design documents describe:
+ADR documents describe why architectural decisions were made.
 
-> **How the system works**
+Both are official project documentation.
 
-ADR documents describe:
+## Guiding Statement
 
-> **Why architectural decisions were made**
+Keep the architecture simple.
 
-Both are considered official project documentation.
+Keep the business model deterministic.
 
----
+Keep the server authoritative.
 
-# Guiding Statement
-
-> **Keep the architecture simple.**
->
-> **Keep the business model deterministic.**
->
-> **Keep one source of truth.**
->
-> **Add complexity only when the business truly requires it.**
+Add complexity only when the business truly requires it.

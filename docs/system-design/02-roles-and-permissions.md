@@ -1,244 +1,217 @@
-# Chapter 2 --- Roles & Permissions
+# Chapter 2 - Roles & Permissions
 
 ## Purpose
 
 This chapter defines the authorization model of Yelena Inventory.
 
-It explains how responsibilities are represented, how permissions are
-granted, and how access to business data is determined.
+It explains how responsibilities are represented, how branch access is derived,
+and how the application decides which screens and actions are available.
 
-The objective of this design is to provide a permission model that is
-simple, deterministic, scalable, and easy to maintain throughout the
-lifetime of the project.
+Authentication identifies the user. Authorization determines what that user may
+do.
 
-This chapter defines the permanent business rules governing
-authorization.
+## Permanent Principles
 
-------------------------------------------------------------------------
-
-# Design Philosophy
-
-The permission model is intentionally simple.
-
-The application does not attempt to become a generic permission
-management platform.
-
-Instead, it implements a fixed organizational model based on common
-business structures found in retail environments.
-
-Permissions are granted through predefined roles rather than
-individually assigned capabilities.
-
-This approach minimizes configuration errors, simplifies administration,
-and ensures consistent behavior across all installations.
-
-------------------------------------------------------------------------
-
-# Core Principles
-
-### Identity and Responsibility are Separate
+### Identity and Responsibility Are Separate
 
 Employees represent people.
 
-Roles represent responsibilities.
+Roles represent responsibility types.
 
-Permissions are never stored on employees directly.
+Role Assignments connect employees to responsibilities.
 
-### One Source of Truth
+### Role Assignments Are the Permission Source
 
-Every permission originates from active Role Assignments.
+Every operational permission originates from effective Role Assignments.
 
-No other structure grants permissions.
+No second permission source exists.
 
 ### Fixed Roles
 
-The set of available roles is fixed.
+The role set is fixed by the application design:
 
-Roles cannot be created, deleted, or modified from within the
-application.
+- `developer`
+- `system_manager`
+- `area_manager`
+- `branch_manager`
+- `deputy_branch_manager`
+- `store_employee`
+- `viewer`
 
-Adding or changing roles requires development.
+Roles cannot be created, deleted, or renamed through the application.
 
-### Permissions Live in Code
+### Permissions Are Fixed Capabilities
 
-The database stores assignments.
+The permission vocabulary and role capability definitions are fixed in
+application code.
 
-The application determines what each role is allowed to do.
+The database stores role assignment facts. It does not store a dynamic
+permission editor.
 
-### One Operational Context
+### UI Visibility Is Not Authorization
 
-Although a user may have access to multiple branches, every action is
-always performed inside one selected Current Branch.
+Flutter evaluates permissions to improve presentation, navigation, and user
+experience.
 
-------------------------------------------------------------------------
+Hiding a button is not a security boundary. Sensitive business mutations must
+also be validated server-side.
 
-# System Roles
+## System Roles
 
-  Role                    Purpose
-  ----------------------- ---------------------------------------------
-  Developer               System development and maintenance
-  System Manager          Full administrative access
-  Area Manager            Administrative access within assigned areas
-  Branch Manager          Full management of assigned branches
-  Deputy Branch Manager   Temporary branch management
-  Store Employee          Operational inventory work
-  Viewer                  Read-only access within assigned branches
+| Role | Purpose |
+| --- | --- |
+| Developer | Protected development and maintenance role |
+| System Manager | Broad company-level administration |
+| Area Manager | Administration within assigned areas |
+| Branch Manager | Management of assigned branches |
+| Deputy Branch Manager | Time-limited branch management |
+| Store Employee | Operational inventory work |
+| Viewer | Read-only branch-scoped access |
 
-Roles are fixed and cannot be managed from within the application.
+`developer` is protected and outside normal role administration.
 
-------------------------------------------------------------------------
+## Role Assignment Scope
 
-# Role Assignments
+Each assignment has exactly one scope model implied by the role:
 
-Permissions are granted through Role Assignments.
+| Role | Scope |
+| --- | --- |
+| `developer` | global |
+| `system_manager` | global |
+| `area_manager` | area |
+| `branch_manager` | branch |
+| `deputy_branch_manager` | branch, time-limited |
+| `store_employee` | branch |
+| `viewer` | branch, or no effective access fallback where explicitly designed |
 
-Each assignment connects:
+Current Branch is operational context. It is not itself a permission source.
 
--   One Employee
--   One Role
--   One Business Scope
+## Effective Assignments
 
-Role Assignments are the single source of truth for authorization.
+An assignment is effective only when:
 
-Employees may hold multiple active assignments simultaneously.
+- the employee is active,
+- the assignment is active,
+- `valid_from` is absent or has started,
+- `valid_until` is absent or has not passed,
+- the assignment scope applies to the Current Branch when branch context is
+  required.
 
-------------------------------------------------------------------------
+Employees may hold multiple effective assignments at the same time. Effective
+permissions are the union of applicable assignments.
 
-# Business Scope
+## Implemented State in v0.4.0
 
-Depending on the assigned role, the operational scope may be:
+Verified Flutter implementation includes:
 
--   Global
--   Area
--   Branch
+- `RoleCode` and `RoleModel` with stable role codes.
+- `RoleAssignmentModel` with `validFrom`, `validUntil`, `isActive`, and
+  effectiveness evaluation.
+- `EffectivePermissions` as the fixed application permission vocabulary.
+- Current Session facts: authenticated user, current employee, active role
+  assignments, accessible branches, and current branch.
+- Current Branch selection and persistence by branch code.
+- Employee Management and Role Assignment Management driven by
+  Role Assignments.
+- Role assignment create, replace, and end operations through Supabase RPCs.
+- Employee deactivation through a Supabase RPC.
 
-The required scope is implied by the assigned role.
+## Server-Side Authorization
 
-The application interprets the assignment and calculates the effective
-permissions.
+For sensitive employee-management and role-assignment operations, Flutter calls
+server-side RPCs that return stable result codes.
 
-------------------------------------------------------------------------
+The server-side checks are part of defense in depth and must remain aligned with
+the same role hierarchy used by the application.
 
-# Current Branch
+The current verified RPC-facing operations include:
 
-Users with access to multiple branches select one Current Branch before
-beginning operational work.
+- `add_employee_role_assignment`
+- `replace_employee_role_assignment`
+- `end_employee_role_assignment`
+- `deactivate_employee`
+- `create_employee_with_first_role_assignment`
 
-The selected branch becomes the active business context.
+## Assignment Management
 
-Changing the Current Branch changes operational context, not
-permissions.
+Assignment management is intentionally history-preserving.
 
-------------------------------------------------------------------------
+Adding an assignment creates a new active responsibility.
 
-# Permission Evaluation
+Replacing an assignment is experienced by the user as editing, but the server
+preserves history internally.
 
-Permissions are calculated rather than stored.
+Ending an assignment cancels the active responsibility without deleting the
+employee or historical records.
 
-``` text
-Employee
-    ↓
-Active Role Assignments
-    ↓
-Current Branch
-    ↓
-Application evaluates permissions
-    ↓
-Available Actions
-```
+## Frozen `deactivate_employee` Contract
 
-------------------------------------------------------------------------
+The current `deactivate_employee` operation is frozen as implemented.
 
-# Temporary Responsibilities
+It:
 
-Temporary responsibilities are implemented through Role Assignments with
-validity periods.
+- accepts `p_target_employee_id uuid`,
+- returns `text`,
+- uses `SECURITY DEFINER`,
+- uses `SET search_path TO ''`,
+- prevents self-deactivation,
+- protects the Developer role,
+- evaluates active role assignments in this fixed order:
+  1. `system_manager`
+  2. `area_manager`
+  3. `branch_manager`
+  4. `deputy_branch_manager`
+  5. `store_employee`
+  6. `viewer`,
+- applies the same authorization hierarchy used by
+  `end_employee_role_assignment`,
+- deactivates only assignments the operator is authorized to manage,
+- leaves side-level or higher assignments intact when the operator cannot manage
+  them,
+- deactivates the employee only when no active role assignments remain.
 
-This mechanism is primarily used for Deputy Branch Managers.
+Primary success results:
 
-Expired assignments automatically lose effect.
+- `deactivated`
+- `partiallyDeactivated`
+- `nothingToDeactivate`
 
-------------------------------------------------------------------------
+Known error results:
 
-# Developer
+- `unauthorized`
+- `employeeNotFound`
+- `employeeInactive`
+- `selfManagementNotAllowed`
+- `protectedRole`
+- `operationFailed`
 
-Developer is represented by the protected technical employee:
+This contract must not be expanded or redesigned without explicit approval.
 
-``` text
-EMP0000
-```
+## Rejected Alternatives
 
-This account exists outside normal business administration.
-
-It cannot be assigned, modified, or removed from within the application.
-
-------------------------------------------------------------------------
-
-# Business Rules
-
--   Employees may hold multiple active roles.
--   Roles are permanent.
--   Permissions are never assigned individually.
--   Permissions are always calculated.
--   Exactly one Current Branch is active.
--   Inactive employees cannot have active permissions.
--   Branch membership is derived from Role Assignments.
--   Only one Deputy Branch Manager may be active per branch at any given
-    time.
-
-------------------------------------------------------------------------
-
-# Design Decisions
-
-This architecture intentionally chooses:
-
--   Fixed organizational roles.
--   Code-based permission evaluation.
--   Multiple simultaneous responsibilities.
--   One permission source.
--   One operational context.
-
-------------------------------------------------------------------------
-
-# Rejected Alternatives
-
-### Dynamic Permission Editor
+### Dynamic permission editor
 
 Rejected because it adds complexity without measurable business value.
 
-### Employee Branch Membership
+### Employee branch membership as a permission source
 
-Rejected because branch membership is already implied by active Role
-Assignments.
+Rejected because branch membership is derived from Role Assignments.
 
-### Individual Permission Assignment
+### Client-only authorization
 
-Rejected because maintaining individual permissions significantly
-increases complexity.
+Rejected because sensitive operations require independent server validation.
 
-### Database Permission Logic
+### Independent server permission model
 
-Rejected because authorization belongs to the application layer.
+Rejected because maintaining two authorization models would create
+contradictions.
 
-------------------------------------------------------------------------
+## Summary
 
-# Future Considerations
+Role Assignments are the single authorization source.
 
-Future responsibilities should extend the existing Role Assignment model
-rather than introducing parallel authorization systems.
+Flutter derives user experience from those assignments.
 
-------------------------------------------------------------------------
+Server-side RPCs independently validate sensitive mutations.
 
-# Summary
-
-Employees represent people.
-
-Roles represent responsibilities.
-
-Role Assignments connect the two.
-
-Permissions are calculated from active assignments within the Current
-Branch context.
-
-This model provides a simple, deterministic and maintainable
-authorization architecture.
+Both layers must enforce the same approved authorization model.

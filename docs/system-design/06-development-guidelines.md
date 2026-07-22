@@ -1,199 +1,207 @@
-# Chapter 6 — Development Guidelines
+# Chapter 6 - Development Guidelines
 
 ## Purpose
 
-This chapter defines the development principles that govern the implementation of Yelena Inventory.
+This chapter defines the development standards for Yelena Inventory.
 
-Its purpose is to ensure that every future feature, bug fix, refactoring, and architectural change remains consistent with the overall system design.
+The goal is to keep future implementation aligned with the approved
+architecture while allowing the project to evolve safely.
 
-The guidelines described in this chapter are intended to preserve long-term maintainability, consistency, and architectural integrity.
+## Architectural Authority
 
-Whenever implementation decisions conflict with these guidelines, the implementation should be reconsidered before the architecture is changed.
+The Yelena Inventory System Design Handbook is a living specification.
 
----
+Code must follow the Handbook. When a completed feature changes the documented
+architecture or implementation status, update the Handbook as part of the work.
 
-# Design Philosophy
+Do not modify the Handbook merely to justify accidental code behavior. If the
+architecture genuinely changes, document the decision intentionally.
 
-The architecture has already solved the difficult problems.
+## General Principles
 
-Development should focus on implementing that architecture—not reinventing it.
+- Implement business requirements, not technical shortcuts.
+- Prefer existing architecture over new abstractions.
+- Avoid duplicate representations of the same business fact.
+- Keep responsibilities small.
+- Make business rules easy to discover.
+- Preserve Server First architecture.
+- Keep local storage non-authoritative.
 
-Developers should prefer extending existing concepts over introducing new ones.
+## Supabase and Database Change Rules
 
-The simplest solution that satisfies the business requirements should always be preferred.
+Supabase database changes are currently performed manually by the project owner.
 
----
+Codex or other agents must not create, edit, or run database changes unless the
+project owner explicitly approves that exact task.
 
-# Architectural Authority
+Do not modify without explicit approval:
 
-The **Yelena Inventory System Design Handbook** is the architectural source of truth.
+- SQL,
+- migrations,
+- schema definitions,
+- constraints,
+- triggers,
+- grants,
+- RLS policies,
+- publications,
+- database functions,
+- Supabase configuration.
 
-Code must follow the Handbook.
+Database inspection and reporting are allowed. Database mutation is not.
 
-The Handbook should never be modified merely to justify existing code.
+When documenting backend behavior, distinguish between:
 
-If the architecture genuinely needs to evolve:
+- local SQL artifacts,
+- verified Flutter usage,
+- approved manual Supabase backend contracts,
+- planned architecture.
 
-1. Update the Handbook.
-2. Record the architectural decision (ADR when applicable).
-3. Update the implementation.
+## Permission and Security Guidelines
 
-Architecture always leads implementation.
+Role Assignments remain the single source of authorization facts.
 
----
-
-# General Development Principles
-
-### Implement Business Requirements
-
-Code should implement business requirements rather than technical shortcuts.
-
-Business concepts always take priority over implementation convenience.
-
-### Extend Before Creating
-
-Before introducing a new table, service, provider, entity, or abstraction, developers should first determine whether the existing architecture already provides an appropriate extension point.
-
-### Avoid Duplicate Concepts
-
-Never introduce duplicate representations of the same business fact.
-
-Every business concept should have one clearly defined owner.
-
-### Keep Responsibilities Small
-
-Classes, services, repositories, and providers should have one primary responsibility.
-
-### Prefer Explicit Design
-
-Avoid implicit behavior whenever possible.
-
-Business rules should be easy to discover by reading the code.
-
----
-
-# Database Guidelines
-
-Database changes should respect the Domain Model.
-
-Avoid:
-
-- Unnecessary denormalization.
-- Duplicate ownership.
-- Unnecessary nullable fields.
-- Persisting derived information.
-
----
-
-# Permission Guidelines
-
-The permission model is fixed.
+Flutter permission checks improve UX, but they never replace server-side
+authorization.
 
 Do not introduce:
 
-- Dynamic roles.
-- Runtime permission editors.
-- Alternative authorization paths.
-- Duplicate permission structures.
+- dynamic roles,
+- runtime permission editors,
+- alternative authorization paths,
+- duplicate permission tables,
+- client-only security for sensitive mutations.
 
-Role Assignments remain the single source of truth.
+Sensitive operations should be validated server-side where implemented and
+expanded server-side where still planned.
 
----
+## Authentication Guidelines
 
-# Authentication Guidelines
+Authentication identifies the user.
 
-Authentication identifies people.
+Authorization follows from the linked Employee and effective Role Assignments.
 
-Authorization grants permissions.
+Current Branch defines operational context.
 
-Operational context defines where work occurs.
+Do not merge these concepts.
 
-These responsibilities should never be merged.
+Do not create fake users, bypass authentication, or hardcode reviewer
+credentials.
 
----
+## Secrets and Reviewer Data
 
-# Audit Guidelines
+Never hardcode or document:
+
+- reviewer phone numbers,
+- fixed OTP codes,
+- Supabase URLs or keys that are not public documentation placeholders,
+- service-role keys,
+- Google Play reviewer credentials,
+- personal phone numbers,
+- real customer data.
+
+Reviewer credentials must remain outside source control.
+
+## Release Build Guidelines
+
+Google Play release builds must use:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+& .\scripts\build_android_release.ps1
+```
+
+Run the command from the repository root.
+
+Do not create Google Play AABs with a plain:
+
+```powershell
+flutter build appbundle --release
+```
+
+The release script:
+
+- loads local Supabase configuration from `scripts/release.env.ps1`,
+- keeps `release.env.ps1` uncommitted,
+- passes the required dart-defines,
+- increments only the Flutter build number,
+- leaves the semantic version under deliberate manual control,
+- produces the release AAB at
+  `yelena_inventory/build/app/outputs/bundle/release/app-release.aab`.
+
+## Command and Validation Guidelines
+
+Human-facing command instructions should be kept on one line whenever practical.
+
+Significant changes should run relevant validation and report results honestly.
+Typical checks include:
+
+- `dart format .`
+- `flutter analyze`
+- focused tests where applicable
+- release build script for release tasks
+
+If a validation command cannot run, report why.
+
+## Commit Guidelines
+
+Use Conventional Commits with a scope.
+
+Examples:
+
+- `feat(employee-management): complete employee lifecycle workflow`
+- `fix(auth): handle expired OTP errors`
+- `docs(system-design): update v0.4.0 implementation baseline`
+
+Do not commit or push unless explicitly asked.
+
+## Audit Guidelines
 
 Every significant business action should be auditable.
 
 Ask:
 
-> "Would an administrator reasonably want to know that this happened?"
+```text
+Would an administrator reasonably want to know that this happened?
+```
 
 If the answer is yes, the operation probably belongs in the Audit System.
 
----
+Do not confuse audit intent with verified audit implementation coverage.
 
-# Future Development
-
-New modules should integrate into the existing architecture before introducing new concepts.
-
-The architecture should grow by extension rather than replacement.
-
----
-
-# Code Review Checklist
+## Code Review Checklist
 
 Before approving significant changes, verify:
 
-- Does the implementation follow the Domain Model?
-- Does it preserve a single source of truth?
-- Does it duplicate existing concepts?
-- Does it introduce unnecessary complexity?
-- Does it follow the permission architecture?
-- Does it preserve audit integrity?
-- Does it maintain Server First principles?
+- Does it follow the Domain Model?
+- Does it preserve one source of truth?
+- Does it avoid duplicate concepts?
+- Does it preserve Server First data ownership?
+- Does it keep local storage non-authoritative?
+- Does it follow the Role Assignment permission architecture?
+- Does it avoid client-only security for sensitive operations?
+- Does it preserve audit intent?
+- Does it update documentation when implementation status changes?
+- Does it avoid secrets and reviewer credentials?
 
----
+## Rejected Alternatives
 
-# Design Decisions
-
-This chapter intentionally establishes:
-
-- Architecture before implementation.
-- One authoritative design handbook.
-- Extension over replacement.
-- Business-driven implementation.
-- Consistent architectural evolution.
-
----
-
-# Rejected Alternatives
-
-### Code Defines the Architecture
+### Code defines the architecture
 
 Rejected because architecture should remain intentional rather than accidental.
 
-### Feature-Driven Design
+### Parallel implementations
 
-Rejected because isolated feature decisions eventually create inconsistent systems.
+Rejected because multiple implementations of the same business concept
+inevitably diverge.
 
-### Parallel Implementations
+### UI hiding as authorization
 
-Rejected because multiple implementations of the same business concept inevitably diverge over time.
+Rejected because hidden controls do not protect backend data.
 
-### Architecture by Convention
+## Summary
 
-Rejected because important architectural decisions should be documented explicitly.
+Development should implement the approved architecture faithfully.
 
----
-
-# Future Considerations
-
-As the project grows, these guidelines should evolve carefully.
-
-New development practices may be added, but they should strengthen the existing philosophy rather than replace it.
-
-The Handbook itself should remain a living document that reflects the intended architecture of the system.
-
----
-
-# Summary
-
-The purpose of these guidelines is not to restrict development—it is to keep development consistent.
-
-Every implementation decision should reinforce the architecture established throughout this Handbook.
-
-By treating the Handbook as the architectural reference and the code as its implementation, Yelena Inventory can continue to grow without losing clarity, consistency, or maintainability.
-
-Long-term success depends not only on writing good code, but on preserving the principles that make good code possible.
+The Handbook, database contracts, Flutter code, release process, and security
+model must evolve together and remain honest about what is implemented, partial,
+and planned.

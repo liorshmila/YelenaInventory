@@ -1,273 +1,189 @@
-# Chapter 3 --- Authentication
+# Chapter 3 - Authentication
 
 ## Purpose
 
-This chapter defines the identity and authentication model of Yelena
-Inventory.
+This chapter defines the identity and authentication model of Yelena Inventory.
 
-Its purpose is to explain how a person becomes an authenticated system
-user, how that identity is maintained over time, and how authentication
-integrates with the business domain.
+Authentication verifies who the user is.
 
-Authentication verifies **who the user is**.
+Authorization determines what the user may do.
 
-Authorization determines **what the user is allowed to do**.
+Current Branch determines where the user is working.
 
-These two concepts are intentionally separated.
+These responsibilities are intentionally separate.
 
-------------------------------------------------------------------------
+## Permanent Principles
 
-# Design Philosophy
+### Authentication Does Not Grant Permissions
 
-Authentication exists to establish identity.
+Authentication establishes identity only. It does not define roles,
+responsibilities, accessible branches, or visible actions.
 
-It does not determine permissions.
+After authentication, authorization is derived from the linked Employee and
+effective Role Assignments.
 
-It does not determine responsibilities.
+### One Authenticated Identity Maps to One Employee
 
-It does not determine operational context.
+Every authenticated application user must map to exactly one Employee through
+`employees.auth_user_id`.
 
-Once identity has been established, the authorization system takes over.
+An Employee may exist before an Auth identity is linked.
 
-This separation keeps the architecture simple, secure, and maintainable.
+### Employee Identity Is Stable
 
-------------------------------------------------------------------------
+The Employee record represents the person in the business. Authentication
+credentials may change over time, but the Employee business identity should be
+preserved.
 
-# Identity Model
+Changing a phone number changes the authentication attribute. It does not
+automatically destroy the Employee identity.
 
-Every authenticated user is always associated with exactly one Employee.
+## Implemented Supabase Auth Flow in v0.4.0
 
-An Employee may temporarily exist without an authenticated account.
+Flutter initializes Supabase through `SupabaseService` using compile-time
+dart-defines:
 
-This occurs before the employee completes the first SMS verification.
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
 
-After successful verification, the authentication identity becomes
-permanently linked to that employee.
+Phone authentication is performed through Supabase Auth:
 
-This relationship remains stable throughout the employee's lifecycle.
+1. The user enters an Israeli mobile phone number.
+2. Flutter normalizes the phone number to E.164 format.
+3. Flutter calls `signInWithOtp`.
+4. Supabase Auth generates the OTP and sends the SMS through its configured SMS
+   provider.
+5. The user enters the SMS code.
+6. Flutter calls `verifyOTP` with `OtpType.sms`.
+7. Supabase Auth returns the authenticated user/session.
+8. Flutter calls the `link_authenticated_employee` RPC.
+9. If linking succeeds or is idempotently already linked, Flutter bootstraps the
+   Current Session by authenticated user id.
 
-------------------------------------------------------------------------
+OTP generation and SMS delivery are not implemented in Flutter and are not
+implemented in repository Edge Functions. They are handled by Supabase Auth and
+the SMS provider configured outside source control.
 
-# Employee Lifecycle
+## Employee Linking
 
-### Stage 1 --- Employee Creation
+After successful SMS verification, the application calls
+`link_authenticated_employee`.
 
-The employee is created by an authorized administrator.
+The approved linking behavior is:
 
-The employee exists in the business.
+- use the authenticated user/session rather than trusting a client-provided
+  employee id,
+- link only to an existing Employee,
+- do not create an Employee during authentication,
+- do not overwrite an employee already linked to another Auth user,
+- treat an already-correct link as idempotent success,
+- return stable result codes.
 
-Authentication does not yet exist.
+Known Flutter result handling includes:
 
-``` text
-Employee
-✓ Exists
+- `linked`
+- `alreadyLinked`
+- `employeeNotFound`
+- `employeeInactive`
+- `linkingConflict`
+- `authenticatedPhoneMissing`
+- `invalidAuthenticatedPhone`
+- `operationFailed`
 
-Auth Account
-✗ Not Linked
+## Current Session Bootstrap
+
+After successful linking, Flutter loads the Current Session:
+
+```text
+auth user id
+-> employees.auth_user_id
+-> Employee
+-> effective Role Assignments
+-> accessible Branches
+-> Current Branch
 ```
 
-### Stage 2 --- First Authentication
+Session resolution rules:
 
-The employee receives an SMS verification.
+- inactive employee: no active permission,
+- no accessible branches: no active permission,
+- saved branch restored only if still accessible,
+- one accessible branch selected automatically,
+- multiple accessible branches require branch selection.
 
-After successful verification:
+The selected branch is stored locally by stable branch code. The database does
+not persist the user's current branch.
 
--   A Supabase Auth account is created.
--   The employee is linked.
--   Future logins use the same identity.
+## Existing Session Restoration
 
-### Stage 3 --- Normal Operation
+On app startup, `AuthSessionGate` calls the Auth controller to restore the
+current Supabase Auth session.
 
-Authentication becomes transparent.
+If a valid session exists, the app links/bootstrap checks are run again and the
+user is routed according to Current Session status.
 
-The application restores the existing authenticated session
-automatically.
+If no session exists, the app shows the phone login flow.
 
-Daily work does not require repeated SMS verification.
+## Inactive and Reactivated Employees
 
-### Stage 4 --- Identity Reset
+Inactive employees must not retain effective application access.
 
-Certain events invalidate the authentication relationship.
+The current employee creation RPC can reactivate an inactive employee when the
+same phone number is used, according to the approved server contract. This
+preserves the employee id, employee code, and existing `auth_user_id`.
 
-Examples include:
+## Google Play Reviewer Access
 
--   Phone number change
--   Security recovery
--   Administrative reset
+Google Play closed testing uses a dedicated reviewer employee and Supabase
+test-phone functionality.
 
-The existing authentication link is removed and a new SMS verification
-is required.
+The purpose is to allow app review without exposing real employee credentials.
 
-------------------------------------------------------------------------
+Reviewer phone numbers, fixed OTPs, Supabase keys, and reviewer credentials must
+remain outside source control and must not be documented in the repository.
 
-# Authentication Flow
+## Business Rules
 
-``` text
-Administrator
-        │
-Creates Employee
-        │
-        ▼
-Employee Exists
-        │
-        ▼
-SMS Verification
-        │
-        ▼
-Supabase Authentication
-        │
-        ▼
-Employee Linked
-        │
-        ▼
-Normal Operation
-```
+- Authentication identifies people.
+- Authorization follows authentication.
+- Every authenticated user must map to one Employee.
+- Employees may exist before authentication.
+- Authentication does not create business employees.
+- Inactive employees must not retain effective access.
+- Supabase Auth sessions may be restored automatically.
 
-------------------------------------------------------------------------
+## Rejected Alternatives
 
-# Authentication Identity
+### Username and password
 
-Authentication is based on the employee's phone number.
+Rejected because SMS verification is simpler for operational store employees.
 
-The phone number is treated as an identity attribute rather than merely
-contact information.
+### Authentication determines permissions
 
-Changing the phone number changes the authentication identity while
-preserving the business employee.
+Rejected because permissions belong to Role Assignments.
 
-------------------------------------------------------------------------
+### Direct client-side employee linking
 
-# Session Philosophy
+Rejected because Flutter must not choose the Employee record or overwrite Auth
+links.
 
-Authentication should become invisible after the first successful
-verification.
+### Anonymous operational access
 
-Existing authenticated sessions are restored automatically.
+Rejected because operational work must be attributable to an employee.
 
-Future security policies may invalidate sessions when appropriate.
+## Planned and Partial Work
 
-------------------------------------------------------------------------
+- Full RLS coverage remains planned.
+- Broader session hardening remains planned.
+- Administrative reset/relink workflows require explicit future design before
+  implementation.
 
-# Relationship to Authorization
+## Summary
 
-Authentication never grants permissions.
+Supabase Auth establishes identity.
 
-``` text
-Authenticated Employee
-        │
-        ▼
-Role Assignments
-        │
-        ▼
-Current Branch
-        │
-        ▼
-Permissions
-```
+The employee-link RPC connects that identity to an Employee.
 
-Authorization always follows authentication.
+Current Session loads authorization facts and Current Branch context.
 
-------------------------------------------------------------------------
-
-# Developer Authentication
-
-Developer follows the same authentication architecture.
-
-It is represented by the protected technical employee:
-
-``` text
-EMP0000
-```
-
-The account cannot be created, modified, or assigned from within the
-application.
-
-------------------------------------------------------------------------
-
-# Business Rules
-
--   Authentication identifies people.
--   Authorization grants permissions.
--   Every authenticated identity belongs to one Employee.
--   One Employee belongs to one authentication identity.
--   SMS verification occurs only when required.
--   Changing the phone number requires re-verification.
--   Inactive employees cannot authenticate.
--   Employees may exist before authentication.
-
-------------------------------------------------------------------------
-
-# Design Decisions
-
--   Employee-first identity.
--   SMS-based authentication.
--   Stable identity mapping.
--   Separation of authentication and authorization.
--   Transparent day-to-day authentication.
-
-------------------------------------------------------------------------
-
-# Rejected Alternatives
-
-### Username and Password
-
-Rejected because phone verification provides a simpler experience for
-operational employees.
-
-### Authentication Determines Permissions
-
-Rejected because permissions belong to Role Assignments, not
-authentication.
-
-### Anonymous Operational Access
-
-Rejected because every operational action must be attributable to a real
-employee.
-
-### Multiple Authentication Identities Per Employee
-
-Rejected because one person should have one permanent business identity.
-
-------------------------------------------------------------------------
-
-# Future Considerations
-
-Future authentication providers may be introduced without changing the
-business model.
-
-The authentication mechanism may evolve.
-
-The identity architecture should not.
-
-------------------------------------------------------------------------
-
-# Summary
-
-The authentication architecture of Yelena Inventory is intentionally
-independent from authorization.
-
-Authentication exists solely to establish and preserve the identity of a
-real employee. It never grants permissions, determines responsibilities,
-or defines operational access.
-
-Every authenticated user is permanently linked to exactly one Employee
-record. This business identity remains stable throughout the employee's
-lifecycle, while authentication credentials may change over time, such
-as after a phone number update or a security reset.
-
-Once authentication succeeds, the authorization system evaluates the
-employee's active Role Assignments together with the selected Current
-Branch to determine the actions available within the application.
-
-This separation creates a clear architectural boundary:
-
--   Authentication answers **who the user is.**
--   Authorization answers **what the user may do.**
--   Operational context answers **where the user is currently working.**
-
-Keeping these responsibilities independent simplifies the architecture,
-reduces coupling between system components, and allows each subsystem to
-evolve without affecting the others.
-
-This principle is fundamental to Yelena Inventory and should be
-preserved throughout future development.
+Only Role Assignments grant application access.

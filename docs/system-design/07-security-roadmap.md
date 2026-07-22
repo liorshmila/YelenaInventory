@@ -1,184 +1,226 @@
-# Chapter 7 — Security Roadmap
+# Chapter 7 - Security Roadmap
 
 ## Purpose
 
-This chapter defines the planned security evolution of Yelena Inventory.
+This chapter describes the security status and planned security evolution of
+Yelena Inventory.
 
-The current architecture intentionally prioritizes establishing a stable business model before implementing the complete security model.
+Security reinforces the approved architecture. It does not redefine the domain,
+permission model, authentication model, or database ownership rules.
 
-This document describes the planned security direction and identifies the components that are intentionally deferred to future development phases.
+## Security Philosophy
 
-The purpose of this roadmap is to ensure that future security improvements strengthen the existing architecture without changing its underlying design.
-
----
-
-# Security Philosophy
-
-Security should reinforce the architecture.
-
-It should never redefine it.
-
-The Domain Model, Roles, Authentication, Audit, and Database architecture remain valid regardless of future security enhancements.
-
-Security is therefore implemented as additional protection layers rather than alternative business logic.
-
----
-
-# Current Architecture
-
-The current architecture already provides:
-
-- Employee identity.
-- SMS authentication.
-- Fixed roles.
-- Role Assignments.
-- Audit history.
-- Current Branch isolation.
-- Server First data ownership.
-
-These components form the foundation upon which future security mechanisms will operate.
-
----
-
-# Planned Security Layers
-
-## Row Level Security (RLS)
-
-Row Level Security will become the primary server-side authorization mechanism.
-
-Its purpose is to ensure that database access follows the same authorization rules already defined by the application.
-
-RLS should enforce the existing permission model rather than introduce a new one.
-
-## Server-side Authorization
-
-The application currently evaluates permissions.
-
-Future server-side authorization should independently validate sensitive operations before modifying business data.
-
-This creates defense in depth.
-
-## Secure Audit
-
-Critical operations may eventually generate audit records directly on the server.
-
-The audit architecture itself does not change.
-
-Only the audit generation mechanism evolves.
-
-## Session Security
-
-Future improvements may include:
-
-- Automatic session expiration.
-- Inactivity timeout.
-- Forced logout after extended inactivity.
-- Token validation improvements.
-
-These enhancements affect authentication sessions only.
-
-## Administrative Protection
-
-Future versions may introduce additional protection for sensitive operations.
-
-Examples include:
-
-- Re-authentication before destructive actions.
-- Additional verification for critical administration.
-- Sensitive action confirmation.
-
-## Infrastructure Security
-
-Future infrastructure improvements may include:
-
-- Secret rotation.
-- Secure environment management.
-- Backup encryption.
-- Disaster recovery.
-- Monitoring and alerting.
-
----
-
-# Security Boundaries
-
-Security does not replace business rules.
+Yelena Inventory uses defense in depth:
 
 ```text
 Authentication
-        │
-        ▼
-Authorization
-        │
-        ▼
-Business Rules
-        │
-        ▼
-Security Enforcement
+-> Current Session
+-> Permission-aware UX
+-> Server-side authorization
+-> Database security
+-> Audit and monitoring
 ```
 
 Each layer has a distinct responsibility.
 
----
+UI hiding is not authorization.
 
-# Business Rules
+## Implemented Security Foundations in v0.4.0
 
-- Security must follow the Domain Model.
-- RLS must enforce existing permissions.
-- Security should never duplicate business logic.
-- Audit remains the historical source of truth.
-- Identity remains Employee-based.
-- Authorization remains Role Assignment-based.
+### Supabase Phone Authentication
 
----
+Phone/SMS authentication is implemented through Supabase Auth.
 
-# Design Decisions
+Flutter calls:
 
-This roadmap intentionally chooses:
+- `signInWithOtp` to request an SMS OTP,
+- `verifyOTP` with `OtpType.sms` to verify the OTP.
 
-- Layered security.
-- Server-side enforcement.
-- RLS aligned with the permission model.
-- Evolution without architectural redesign.
-- Security that strengthens existing principles.
+OTP generation and SMS delivery are handled by Supabase Auth and its configured
+SMS provider.
 
----
+### Compile-Time Supabase Configuration
 
-# Rejected Alternatives
+The app initializes Supabase from compile-time dart-defines:
 
-### Security Defines the Business Model
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
 
-Rejected because security should protect the architecture, not redesign it.
+Release builds must use the repository release script so these values are
+included without committing secrets.
 
-### Independent Server Permission Model
+### Employee/Auth Linking
 
-Rejected because maintaining two authorization models would inevitably create inconsistencies.
+After successful authentication, Flutter calls `link_authenticated_employee`.
 
-### Client-only Security
+The linking operation returns stable result codes and keeps authentication
+identity separate from authorization.
 
-Rejected because sensitive operations require independent server validation.
+### Current Session
 
-### Security Through Obscurity
+The app loads Current Session facts from the authenticated user:
+
+- current Employee,
+- active Role Assignments,
+- accessible Branches,
+- Current Branch.
+
+Inactive employees and employees without accessible branches do not reach the
+operational app state.
+
+### Client-Side Permission-Aware UX
+
+Flutter derives visible screens and actions from Current Session facts and fixed
+permission vocabulary.
+
+This improves user experience but is not a security boundary.
+
+### Protected Developer Behavior
+
+The Developer role and `EMP0000` employee are protected from normal employee and
+role administration flows.
+
+### Android Release Scanner Protection
+
+The release build includes ProGuard keep rules for ML Kit and Firebase
+ComponentDiscovery, preserving scanner functionality in Google Play release
+AABs.
+
+## Partially Implemented Enforcement
+
+### Server-Side Authorization for Employee and Assignment Mutations
+
+Sensitive employee-management and role-assignment mutations are performed
+through Supabase RPCs that return stable business result codes.
+
+Verified RPC-facing operations include:
+
+- `create_employee_with_first_role_assignment`
+- `add_employee_role_assignment`
+- `replace_employee_role_assignment`
+- `end_employee_role_assignment`
+- `deactivate_employee`
+
+The frozen `deactivate_employee` function:
+
+- uses `SECURITY DEFINER`,
+- uses `SET search_path TO ''`,
+- prevents self-deactivation,
+- protects Developer,
+- applies the approved hierarchy,
+- changes only assignments the operator is authorized to manage,
+- deactivates the employee only when no active role assignments remain.
+
+This is implemented server-side authorization for verified employee-management
+operations. It does not prove complete server-side enforcement for every module.
+
+### Audit
+
+Audit architecture exists and local audit infrastructure is implemented.
+
+Complete centralized server-side audit coverage for all sensitive RPCs is not
+verified in the repository and remains partial/planned.
+
+### Storage Policies
+
+Product image upload, replacement, download, and deletion depend on Supabase
+Storage bucket policies for `product-images`.
+
+The repository documents and uses the storage flow, but Supabase policy
+configuration itself is managed manually outside source control.
+
+## Remaining Mandatory Security Work
+
+### Full RLS Coverage
+
+Full Row Level Security coverage is not verified across all relevant tables.
+
+RLS remains mandatory before a broader production rollout. RLS policies must
+enforce the approved authorization model rather than create a parallel one.
+
+### Complete Server-Side Authorization Coverage
+
+Server-side authorization already exists for verified employee-management and
+role-assignment operations.
+
+Remaining business modules should receive equivalent server-side enforcement
+where sensitive mutations exist.
+
+### Server-Side Audit Generation
+
+Critical server-side operations should generate centralized audit records on
+the server.
+
+Audit generation must remain append-only and business-event focused.
+
+### Session Hardening
+
+Planned improvements include:
+
+- inactivity handling,
+- session lifetime policy,
+- forced logout for sensitive account changes,
+- re-authentication before destructive actions where appropriate.
+
+### Secret Management
+
+Required ongoing practices:
+
+- keep `scripts/release.env.ps1` local and uncommitted,
+- rotate secrets when needed,
+- never expose service-role keys in Flutter,
+- never document reviewer phone numbers or fixed OTPs.
+
+### Backup, Monitoring, and Disaster Recovery
+
+Planned infrastructure work includes:
+
+- database backup strategy,
+- restore testing,
+- monitoring and alerting,
+- operational incident response,
+- disaster recovery documentation.
+
+## Security Boundaries
+
+| Layer | Responsibility |
+| --- | --- |
+| Supabase Auth | Identity |
+| Employee link RPC | Auth identity to Employee mapping |
+| Current Session | Session facts and Current Branch |
+| Flutter permissions | UX and navigation decisions |
+| Server RPCs | Sensitive mutation authorization |
+| RLS | Row-level database enforcement |
+| Audit | Historical investigation |
+
+No layer should replace another.
+
+## Rejected Alternatives
+
+### Client-only security
+
+Rejected because sensitive mutations require server validation.
+
+### Independent server permission model
+
+Rejected because the server must enforce the same Role Assignment model, not a
+parallel authorization system.
+
+### Security through obscurity
 
 Rejected because robust systems rely on explicit enforcement.
 
----
+### Publicly documented reviewer credentials
 
-# Future Considerations
+Rejected because reviewer access must remain controlled outside source control.
 
-Future security enhancements should strengthen the existing architecture without changing the business model.
+## Summary
 
-If a security proposal requires redesigning the Domain Model, Roles, Authentication, or Database architecture, it should first be treated as an architectural decision.
+Yelena Inventory v0.4.0 includes real security foundations: Supabase phone
+authentication, employee/Auth linking, Current Session, permission-aware UX, and
+server-side authorization for verified employee-management operations.
 
----
-
-# Summary
-
-The security architecture of Yelena Inventory is intentionally evolutionary.
-
-The current system establishes a strong business foundation based on identity, fixed roles, role assignments, audit history, and a normalized database.
-
-Future security mechanisms—including Row Level Security, server-side authorization, enhanced session management, and infrastructure hardening—will be added as complementary protection layers.
-
-By treating security as reinforcement rather than redesign, the system preserves architectural consistency while continuously improving protection.
-
-Ultimately, security should increase confidence in the architecture—not change the architecture itself.
+Security is still incomplete. Full RLS coverage, complete server-side
+authorization across all business modules, server-side audit generation,
+session hardening, secret rotation, backups, monitoring, and disaster recovery
+remain mandatory future work.

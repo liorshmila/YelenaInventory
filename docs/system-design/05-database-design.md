@@ -1,276 +1,167 @@
-# Chapter 5 — Database Design
+# Chapter 5 - Database Design
 
 ## Purpose
 
-This chapter defines the database architecture of Yelena Inventory.
+This chapter defines the database and server-operation architecture of Yelena
+Inventory.
 
-The database is responsible for storing business facts, preserving relationships, and protecting data integrity.
+The database stores business facts, preserves relationships, and protects
+business integrity. Server-side RPCs enforce sensitive business mutations where
+implemented.
 
-It is intentionally designed to reflect the Domain Model rather than application screens, Flutter state, or implementation shortcuts.
+The application remains responsible for workflow, localization, presentation,
+and permission-aware user experience.
 
-The database stores **facts**.
+## Evidence and Status
 
-The application implements **behavior**.
+The repository currently contains two relevant kinds of evidence:
 
----
+- local SQL artifacts under `database/`, including core tables, constraints,
+  indexes, views, and verification scripts;
+- Flutter Supabase code that calls tables and RPCs that were manually created
+  or updated in Supabase by the project owner.
 
-# Design Philosophy
+Database changes are currently applied manually by the project owner. This
+handbook documents verified architecture and contracts, but this task did not
+change any database artifact.
 
-The database is the authoritative source of business data.
+## Server-First Data Ownership
 
-Its responsibilities are:
+Supabase is the authoritative source of business facts.
 
-- Persisting business entities.
-- Maintaining relationships.
-- Enforcing uniqueness.
-- Preventing invalid references.
-- Preserving current business state.
-- Supporting reliable historical investigation through Audit.
+Local storage may support caching, legacy flows, or controlled offline fallback,
+but it must never become the source of truth. Any offline capability must
+reconcile with the server.
 
-The database is not responsible for:
+## Current Baseline in v0.4.0
 
-- UI behavior.
-- Navigation.
-- Permission presentation.
-- Localization.
-- Dynamic workflow decisions.
-- Client-specific state.
+Implemented or verified by repository evidence:
 
-Yelena Inventory follows a **Server First** architecture.
+- Supabase-backed Branch CRUD.
+- Supabase-backed Employee Directory and Employee Management flows.
+- Supabase-backed Role Assignment Management flows.
+- Supabase-backed operational inventory counts.
+- Supabase Storage product images.
+- Supabase Auth identity linked to employees through RPC.
+- Local Drift audit infrastructure remains present.
+- Local SQL artifacts still include legacy `employee_branches`, while the
+  approved architecture and current Flutter employee-management flow use
+  `role_assignments`.
 
-Supabase is the single source of truth.
+## Current/Verified Tables
 
-Local storage is not authoritative and is not part of the final permission model.
+### `branches`
 
----
-
-# Database Topology
-
-The core database topology is:
-
-```mermaid
-erDiagram
-    EMPLOYEES ||--o{ ROLE_ASSIGNMENTS : holds
-    ROLES ||--o{ ROLE_ASSIGNMENTS : defines
-    AREAS ||--o{ BRANCHES : contains
-    AREAS ||--o{ ROLE_ASSIGNMENTS : scopes
-    BRANCHES ||--o{ ROLE_ASSIGNMENTS : scopes
-    EMPLOYEES ||--o{ AUDIT_LOGS : performs
-    BRANCHES ||--o{ AUDIT_LOGS : contextualizes
-    EMPLOYEES ||--o{ INVENTORY_COUNTS : performs
-    BRANCHES ||--o{ INVENTORY_COUNTS : owns
-    PRODUCTS ||--o{ INVENTORY_COUNTS : counted_in
-
-    EMPLOYEES {
-        uuid id PK
-        text employee_code UK
-        text name
-        text phone UK
-        uuid auth_user_id UK
-        boolean is_active
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    ROLES {
-        smallint id PK
-        text code UK
-    }
-
-    AREAS {
-        uuid id PK
-        text name UK
-        boolean is_active
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    BRANCHES {
-        uuid id PK
-        text name UK
-        text branch_code UK
-        uuid area_id FK
-        boolean is_active
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    ROLE_ASSIGNMENTS {
-        uuid id PK
-        uuid employee_id FK
-        smallint role_id FK
-        uuid area_id FK
-        uuid branch_id FK
-        timestamptz valid_from
-        timestamptz valid_until
-        boolean is_active
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    AUDIT_LOGS {
-        uuid id PK
-        text action
-        text entity_type
-        uuid entity_id
-        uuid branch_id FK
-        uuid employee_id FK
-        jsonb details
-        jsonb device_info
-        text app_version
-        timestamptz created_at
-    }
-
-    PRODUCTS {
-        uuid id PK
-        text barcode UK
-        text name
-        text image_path
-        boolean is_active
-        timestamptz created_at
-        timestamptz updated_at
-    }
-
-    INVENTORY_COUNTS {
-        uuid id PK
-        uuid branch_id FK
-        uuid employee_id FK
-        uuid product_id FK
-        integer quantity
-        timestamptz created_at
-        timestamptz updated_at
-    }
-```
-
-The diagram describes the target architecture.
-
-Existing implementation details may temporarily differ during migration, but the target model remains the architectural source of truth.
-
----
-
-# Core Tables
-
-## Employees
-
-`employees` represents one physical person per record.
-
-Core fields:
+Verified local SQL fields:
 
 ```text
-id
-employee_code
-name
-phone
-auth_user_id
-is_active
-created_at
-updated_at
+id uuid primary key
+name text not null
+is_active boolean not null default true
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
+branch_code text not null
 ```
+
+Flutter also reads `area_id` from `branches`; this reflects the manually updated
+Supabase backend used by the current role-assignment architecture.
 
 Rules:
 
-- One person equals one employee record.
-- `employee_code` is unique across the company.
-- Employee codes are generated automatically.
+- Branches are soft-deactivated with `is_active`.
+- `branch_code` is the stable business identifier used for local Current Branch
+  persistence.
+- Branches may optionally belong to an Area in the target/current backend
+  design.
+
+### `employees`
+
+Verified local SQL fields:
+
+```text
+id uuid primary key
+name text not null
+is_active boolean not null default true
+created_at timestamptz not null default now()
+phone text not null
+updated_at timestamptz not null default now()
+employee_code text not null
+```
+
+Flutter also reads `auth_user_id` from `employees`; this reflects the manually
+updated Supabase backend used by the current authentication flow.
+
+Rules:
+
+- One employee represents one person.
+- `phone` is unique in the approved backend contract.
+- `auth_user_id` is nullable until the employee first links an Auth identity.
+- `auth_user_id` is unique once assigned.
+- `employee_code` is generated by the server.
 - Employee codes are immutable and never reused.
-- `EMP0000` is reserved for the protected Developer account.
-- Regular employees begin with `EMP0001`.
-- `phone` is unique.
-- `auth_user_id` is nullable until first SMS verification.
-- `auth_user_id` becomes unique once assigned.
-- Employees are deactivated rather than deleted.
-- An inactive employee cannot retain effective access.
+- `EMP0000` is the protected Developer employee.
+- Employees are deactivated, not hard deleted.
 
----
+### Employee Reactivation Contract
 
-## Roles
+`create_employee_with_first_role_assignment` owns employee creation and first
+role assignment creation.
 
-`roles` is a fixed reference table.
+Current approved behavior:
 
-Core fields:
+- active employee with the same phone returns `duplicatePhone`;
+- inactive employee with the same phone is reactivated and returns `created`;
+- reactivation preserves employee id, employee code, and existing
+  `auth_user_id`;
+- reactivation updates the employee name/phone as applicable, marks the employee
+  active, updates timestamps, and creates the requested first role assignment.
+
+Flutter must use the RPC result and must not implement a duplicate-phone
+reactivation workaround.
+
+### `roles`
+
+Verified through Flutter role model and Supabase joins.
+
+Expected fields used by Flutter:
 
 ```text
 id
 code
 ```
 
-Approved role codes:
+Fixed role codes:
 
-```text
-developer
-system_manager
-area_manager
-branch_manager
-deputy_branch_manager
-store_employee
-viewer
-```
+- `developer`
+- `system_manager`
+- `area_manager`
+- `branch_manager`
+- `deputy_branch_manager`
+- `store_employee`
+- `viewer`
 
-Rules:
+Display names are translated in Flutter from stable role codes.
 
-- Roles are fixed.
-- Roles cannot be created or edited from the application.
-- Display names are translated in Flutter from the stable role code.
-- Permissions are defined in application code.
-- No permission table exists.
-- No dynamic role editor exists.
+### `areas`
 
----
+Verified through Flutter area model and Supabase queries.
 
-## Areas
-
-`areas` represents official management regions.
-
-Core fields:
+Expected fields used by Flutter:
 
 ```text
 id
 name
 is_active
-created_at
-updated_at
 ```
 
-Rules:
+Areas are optional management scopes. Area-scoped Role Assignments grant access
+to active branches in the assigned area.
 
-- Area names are unique.
-- Areas are optional.
-- A small business may operate with no areas.
-- Area Managers receive access through Area-scoped Role Assignments.
+### `role_assignments`
 
----
+Verified through Flutter model, repository queries, and RPC payloads.
 
-## Branches
-
-`branches` represents physical stores.
-
-Core fields:
-
-```text
-id
-name
-branch_code
-area_id
-is_active
-created_at
-updated_at
-```
-
-Rules:
-
-- `area_id` is nullable.
-- A branch may belong to one area.
-- A branch without an area is not automatically accessible to an Area Manager.
-- Every operational action occurs within one selected Current Branch.
-- Branches are deactivated rather than hard deleted.
-
----
-
-## Role Assignments
-
-`role_assignments` is the single source of truth for authorization and branch membership.
-
-Core fields:
+Fields used by Flutter:
 
 ```text
 id
@@ -283,256 +174,339 @@ valid_until
 is_active
 created_at
 updated_at
+roles(code)
 ```
 
 Rules:
 
-- One employee may hold multiple active assignments.
-- Every assignment refers to exactly one role.
-- Each role has one expected scope:
-  - `developer` → global
-  - `system_manager` → global
-  - `area_manager` → area
-  - `branch_manager` → branch
-  - `deputy_branch_manager` → branch
-  - `store_employee` → branch
-  - `viewer` → branch
-- Global assignments use neither `area_id` nor `branch_id`.
-- Area assignments use `area_id`.
-- Branch assignments use `branch_id`.
-- `valid_from` and `valid_until` support temporary assignments.
-- A Deputy Branch Manager is fully equivalent to a Branch Manager while the assignment is effective.
-- Only one Deputy Branch Manager may be effective for a branch at a time.
-- Effective activity depends on:
-  - employee is active,
-  - assignment is active,
-  - current time is within the validity period when dates exist.
-- Removing all valid assignments results in no effective business access.
-- Branch membership is derived from active branch-scoped assignments.
+- Role Assignments are the single source of operational permissions and branch
+  membership.
+- An employee may hold multiple active assignments.
+- Global roles use neither area nor branch scope.
+- Area roles use `area_id`.
+- Branch roles use `branch_id`.
+- `deputy_branch_manager` is branch-scoped and time-limited.
+- Effectiveness depends on employee active status, assignment active status,
+  validity dates, role, scope, and Current Branch.
 
----
+Flutter's `RoleAssignmentModel.isEffectiveAt` treats an assignment as effective
+when:
 
-## Audit Logs
+- `is_active` is true,
+- `valid_from` is null or the evaluation time is not before it,
+- `valid_until` is null or the evaluation time is not after it.
 
-`audit_logs` is the immutable investigation history of the system.
+### `products`
 
-Core fields:
+Verified local SQL fields:
 
 ```text
-id
-action
-entity_type
-entity_id
-branch_id
-employee_id
-details
-device_info
-app_version
-created_at
+id uuid primary key
+barcode text not null unique
+name text
+notes text
+image_path text
+is_active boolean not null default true
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
 ```
 
 Rules:
 
-- Audit is append-only.
-- Audit records are never updated or deleted.
-- `employee_id` identifies the acting employee when available.
-- `branch_id` identifies the business context when applicable.
-- `details` stores structured event-specific information.
-- Audit records business events, not UI activity.
-- Developer actions may be associated with the protected `EMP0000` employee.
+- One product equals one barcode.
+- Barcodes are immutable business identifiers.
+- One product has one current image path.
+- Product images are stored in Supabase Storage.
+- `products.image_path` stores the relative object path.
 
----
+### `inventory_counts`
 
-## Products and Inventory Counts
-
-Products and inventory counts remain operational business entities.
-
-They continue to follow the existing Server First architecture.
-
-The permission model does not duplicate their ownership or history.
-
-Access is evaluated from the current employee, active Role Assignments, and Current Branch.
-
----
-
-# Derived Data
-
-Some information is intentionally derived rather than stored.
-
-## Accessible Branches
-
-Accessible branches are calculated from active Role Assignments:
-
-- Developer → all active branches.
-- System Manager → all active branches.
-- Area Manager → active branches belonging to assigned areas.
-- Branch-scoped roles → explicitly assigned branches.
-
-## Employees of a Branch
-
-A branch employee list is derived from active branch-scoped Role Assignments.
-
-If one employee has several roles in the same branch, the employee must be returned once.
-
-Conceptually:
+Verified local SQL fields:
 
 ```text
-Distinct Employees
-from Active Role Assignments
-where branch_id = Current Branch
+id uuid primary key
+product_id uuid not null
+branch_id uuid not null
+employee_id uuid nullable
+quantity integer not null
+counted_at timestamptz not null default now()
+updated_at timestamptz not null default now()
+created_at timestamptz not null default now()
 ```
 
-## Effective Permissions
+Rules:
 
-Effective permissions are the union of all active Role Assignments applicable to the Current Branch.
+- Inventory is event-based.
+- A count belongs to a product and branch.
+- The latest count event determines the current inventory view.
+- Timestamps are stored in UTC and converted to device local time for display.
 
-Permissions are not persisted separately.
+### `audit_logs`
 
----
+Verified local SQL fields:
 
-# Removed Structure: employee_branches
+```text
+id uuid primary key
+action text not null
+entity_type text not null
+entity_id uuid
+branch_id uuid
+employee_id uuid
+details jsonb
+created_at timestamptz not null default now()
+device_info jsonb
+app_version text
+```
 
-The previous `employee_branches` table is not part of the target architecture.
+Audit is intended to be append-only. Complete centralized audit coverage for all
+current server RPCs is not verified in the repository.
 
-It was removed because Role Assignments already express:
+### `employee_branches`
 
-- Which employee belongs to a branch.
-- Which role the employee has there.
-- Whether the relationship is active.
-- Whether the relationship is temporary.
+The local SQL artifacts still include `employee_branches`:
 
-Keeping both structures would create duplicate sources of truth and allow contradictions.
+```text
+id uuid primary key
+employee_id uuid not null
+branch_id uuid not null
+is_active boolean not null default true
+created_at timestamptz not null default now()
+updated_at timestamptz not null default now()
+```
 
-If a future Human Resources module requires employment-location data that is independent of application access, it should introduce a separate explicitly named business concept rather than restoring ambiguous permission duplication.
+This table is legacy for the approved architecture. Current employee-management
+architecture uses `role_assignments` instead.
 
----
+Do not reintroduce `employee_branches` as a permission source.
 
-# Integrity Rules
+## Derived Data
 
-The database should protect permanent business invariants where practical.
+### Accessible Branches
 
-Examples:
+Accessible branches are derived from effective Role Assignments:
 
-- Unique employee codes.
-- Unique phone numbers.
-- Unique non-null Auth user links.
-- Unique area names.
-- Unique branch names and codes.
-- Valid foreign keys.
-- Valid assignment date ranges.
-- No duplicate active assignment for the same employee, role, and scope.
-- No overlapping effective Deputy Branch Manager assignments for the same branch.
+- `developer`: all active branches,
+- `system_manager`: all active branches,
+- `area_manager`: active branches in assigned areas,
+- branch-scoped roles: explicitly assigned active branches.
 
-Application forms also validate these rules before submission.
+### Employees of a Branch
 
-RLS and full server-side authorization enforcement are deferred to the dedicated security phase and remain mandatory before production use of the final authentication model.
+Employees of a branch are derived from effective branch-scoped Role Assignments
+and employee activity. One employee should appear once even if multiple
+assignments apply.
 
----
+### Effective Permissions
 
-# Business Logic Boundary
+Effective permissions are derived in application code from Current Session
+facts. They are not stored as dynamic database rows.
 
-The database stores:
+## Verified Server Operations
 
-- Employees.
-- Roles.
-- Role Assignments.
-- Areas.
-- Branches.
-- Products.
-- Inventory Counts.
-- Audit records.
+The following operations are verified by Flutter RPC calls and result parsing.
+Their implementation exists in the Supabase backend, but the full SQL function
+bodies are not stored in the repository.
 
-The application determines:
+### `link_authenticated_employee`
 
-- Which actions a role permits.
-- Which controls are visible.
-- Which Current Branch is selected.
-- Which workflows are available.
-- How role names are translated.
-- How authorization is presented to the user.
+Called after successful Supabase Auth verification/session restoration.
 
----
+Known result codes:
 
-# Design Decisions
+- `linked`
+- `alreadyLinked`
+- `employeeNotFound`
+- `employeeInactive`
+- `linkingConflict`
+- `authenticatedPhoneMissing`
+- `invalidAuthenticatedPhone`
+- `operationFailed`
 
-This architecture intentionally chooses:
+### `create_employee_with_first_role_assignment`
 
-- A normalized schema.
-- One employee record per person.
-- Fixed roles.
-- Role Assignments as the only permission source.
-- Optional areas.
-- One Current Branch operating context.
-- Immutable audit history.
-- Server First data ownership.
-- Single-tenant deployment.
+Flutter payload:
 
----
+```text
+p_name
+p_phone
+p_role_code
+p_area_id
+p_branch_id
+p_valid_from
+p_valid_until
+```
 
-# Rejected Alternatives
+Known result codes:
 
-### employee_branches
+- `created`
+- `duplicatePhone`
+- `duplicateEmployeeCode`
+- `invalidRole`
+- `invalidScope`
+- `unauthorized`
+- `employeeCreationFailed`
+- `assignmentCreationFailed`
+- `operationFailed`
 
-Rejected because branch membership is already represented by Role Assignments.
+Current server contract includes inactive-employee reactivation on duplicate
+phone as described above.
 
-### Dynamic permissions tables
+### `add_employee_role_assignment`
 
-Rejected because permissions are fixed in application code.
+Flutter payload:
 
-### Dynamic roles
+```text
+p_target_employee_id
+p_role_code
+p_area_id
+p_branch_id
+p_valid_from
+p_valid_until
+```
 
-Rejected because every new role requires intentional product development.
+Known result codes:
 
-### Role display names in the database
+- `created`
+- `assignmentNotFound`
+- `employeeNotFound`
+- `employeeInactive`
+- `invalidRole`
+- `invalidScope`
+- `invalidValidity`
+- `duplicateAssignment`
+- `overlappingAssignment`
+- `unauthorized`
+- `selfManagementNotAllowed`
+- `protectedRole`
+- `operationFailed`
 
-Rejected because localization belongs to Flutter.
+### `replace_employee_role_assignment`
 
-### `scope_type` in `roles`
+Flutter payload:
 
-Rejected because scope is permanently implied by the fixed role code.
+```text
+p_role_assignment_id
+p_role_code
+p_area_id
+p_branch_id
+p_valid_until
+```
 
-### `assigned_by` in Role Assignments
+Known result codes:
 
-Rejected because assignment history belongs in Audit.
+- `replaced`
+- `unchanged`
+- `unauthorized`
+- `assignmentNotFound`
+- `employeeNotFound`
+- `employeeInactive`
+- `protectedRole`
+- `alreadyEnded`
+- `invalidRole`
+- `invalidScope`
+- `invalidValidity`
+- `duplicateAssignment`
+- `overlappingAssignment`
+- `operationFailed`
 
-### Multiple backends sharing multiple businesses
+### `end_employee_role_assignment`
 
-Rejected because every business receives its own backend and database.
+Flutter payload:
 
----
+```text
+p_role_assignment_id
+```
 
-# Future Considerations
+Known result codes:
 
-Future database work includes:
+- `ended`
+- `alreadyEnded`
+- `assignmentNotFound`
+- `employeeNotFound`
+- `employeeInactive`
+- `invalidValidity`
+- `unauthorized`
+- `selfManagementNotAllowed`
+- `protectedRole`
+- `operationFailed`
 
-- Supabase Auth integration.
-- RLS policies.
-- Server-side authorization enforcement.
-- Atomic employee-code generation if later required.
-- Server-side audit generation for highly sensitive operations.
-- Reporting and export structures.
-- Backup and recovery strategy.
+### `deactivate_employee`
 
-These additions must strengthen the existing model rather than introduce parallel sources of truth.
+Frozen signature:
 
----
+```text
+deactivate_employee(p_target_employee_id uuid) returns text
+```
 
-# Summary
+Frozen behavior:
 
-The Yelena Inventory database represents business reality through a small, normalized set of entities and relationships.
+- uses `SECURITY DEFINER`,
+- uses `SET search_path TO ''`,
+- prevents self-deactivation,
+- protects Developer,
+- evaluates active assignments in the fixed hierarchy:
+  1. `system_manager`
+  2. `area_manager`
+  3. `branch_manager`
+  4. `deputy_branch_manager`
+  5. `store_employee`
+  6. `viewer`,
+- ends only assignments the operator is authorized to manage,
+- leaves side-level or higher assignments intact,
+- deactivates the employee only when no active role assignments remain.
 
-Employees represent people.
+Known result codes:
 
-Roles represent fixed responsibilities.
+- `deactivated`
+- `partiallyDeactivated`
+- `nothingToDeactivate`
+- `employeeNotFound`
+- `employeeInactive`
+- `protectedRole`
+- `selfManagementNotAllowed`
+- `unauthorized`
+- `operationFailed`
 
-Role Assignments connect employees to those responsibilities and define their organizational scope.
+## Business Logic Boundary
 
-Areas organize branches without becoming mandatory for small businesses.
+The database and server operations enforce facts and sensitive invariants where
+implemented.
 
-Branches provide the single operational context in which the application works.
+Flutter:
 
-Audit preserves the immutable history of significant business actions.
+- derives permissions for UX,
+- localizes labels,
+- controls navigation,
+- manages Current Branch selection,
+- formats user-visible data.
 
-The database remains authoritative for facts and integrity, while the application remains responsible for behavior, permissions, workflow, localization, and presentation.
+Server-side RPCs:
 
-This separation keeps the architecture predictable, maintainable, and capable of supporting both a single-store business and a larger multi-branch organization without changing its fundamental structure.
+- perform sensitive mutations,
+- enforce protected-role behavior,
+- enforce assignment-management authorization,
+- return stable business result codes.
+
+## Planned and Partial Work
+
+Partial or planned database work includes:
+
+- reconciling local SQL artifacts with the manually updated Supabase backend,
+- full RLS coverage,
+- complete server-side authorization coverage for all business modules,
+- centralized server-side audit generation for sensitive operations,
+- backup and recovery procedures,
+- reporting/export structures.
+
+Supabase Auth integration is implemented and is no longer future work.
+
+## Summary
+
+The database is authoritative for business facts.
+
+Role Assignments are authoritative for permissions and branch membership.
+
+Flutter derives experience and navigation from those facts.
+
+Sensitive employee and assignment mutations are validated by server-side RPCs in
+the current v0.4.0 implementation.

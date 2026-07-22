@@ -1,244 +1,157 @@
-# Chapter 4 --- Audit System
+# Chapter 4 - Audit System
 
 ## Purpose
 
 This chapter defines the audit architecture of Yelena Inventory.
 
-The Audit System records the historical activity of the business and
-provides a reliable timeline of significant events performed within the
-application.
+Audit records significant business events so administrators and developers can
+understand what happened, when it happened, and who performed the action.
 
-Its purpose is accountability, traceability, operational investigation,
-and historical reconstruction.
+Audit is for history and investigation. It is not the current source of truth.
 
-The Audit System is not designed to participate in business operations.
-
-Its responsibility is to preserve history.
-
-------------------------------------------------------------------------
-
-# Design Philosophy
-
-Business data describes the current state of the system.
-
-Audit describes **how the system reached that state.**
-
-These two responsibilities are intentionally separated.
-
-Operational tables answer questions such as:
-
--   What is the employee's current role?
--   Which branch is currently active?
--   Which products exist?
-
-Audit answers different questions:
-
--   Who changed the employee?
--   When was a permission granted?
--   Which manager deactivated the branch?
--   What happened before an inventory discrepancy was discovered?
-
-The Audit System exists to answer historical questions.
-
-------------------------------------------------------------------------
-
-# Core Principles
+## Permanent Principles
 
 ### History Never Changes
 
-Audit records are immutable.
+Audit records are intended to be append-only and immutable.
 
-Once written, an audit record is never modified.
-
-It may only be created.
-
-This guarantees historical consistency.
+Once written, an audit record should not be edited or deleted.
 
 ### Business Tables Store Current State
 
-Operational tables always represent the current business reality.
+Operational tables describe the current business reality.
 
-They are not responsible for preserving history.
+Audit describes how that reality came to exist.
 
-Historical information belongs inside the Audit System.
+### Audit Records Business Events
 
-### Audit Does Not Replace Business Data
+Audit should capture meaningful business activity, not UI noise.
 
-The Audit System complements the operational database.
+Examples that should not be audited:
 
-It never becomes the source of truth for business entities.
+- opening a screen,
+- typing into a field,
+- local validation failures,
+- navigation events,
+- temporary UI state.
 
-Instead, it records the evolution of those entities.
+### Audit Is Not Authorization
 
-### Important Events Only
+Audit does not grant permissions, determine current inventory, or decide current
+employee state. It preserves historical evidence.
 
-Not every database update deserves an audit record.
+## Business Events That Should Be Audited
 
-The Audit System records meaningful business events.
+The approved audit intent includes:
 
-Its goal is clarity rather than noise.
+- employee created,
+- employee updated,
+- employee deactivated,
+- employee reactivated,
+- role assignment created,
+- role assignment replaced,
+- role assignment ended,
+- branch created,
+- branch updated,
+- branch deactivated,
+- product image changed,
+- inventory count created,
+- inventory count updated,
+- inventory count deleted,
+- critical administrative maintenance actions.
 
-------------------------------------------------------------------------
+This list describes audit intent. It does not mean every item is already
+verified as producing a centralized audit record.
 
-# What Should Be Audited
+## Current Implementation Status in v0.4.0
 
-### Employee Management
+### Implemented
 
--   Employee created
--   Employee updated
--   Employee deactivated
--   Employee reactivated
+The Flutter project contains:
 
-### Roles & Permissions
+- a Drift `audit_logs` table,
+- `AuditRepository`,
+- `auditLogsProvider`,
+- `AuditLogScreen`,
+- local filtering by all/today/week/branches/employees/inventory.
 
--   Role assigned
--   Role removed
--   Temporary assignment created
--   Temporary assignment expired
--   Current Branch changed (future decision)
+Repository-level calls to `auditRepository.logAction` are verified for legacy
+and operational flows including:
 
-### Branch Administration
+- branch create/update/deactivate paths,
+- some local employee create/update/delete paths,
+- inventory save paths.
 
--   Branch created
--   Branch updated
--   Branch deactivated
--   Area assignment changed
+### Partial
 
-### Inventory
+The Supabase database scripts include a `public.audit_logs` table and indexes,
+but the current repository evidence does not prove that all v0.4.0 server-side
+RPC mutations write centralized Supabase audit entries.
 
--   Inventory count started
--   Inventory count completed
--   Inventory count cancelled
--   Product quantity adjusted
--   Inventory finalized
+Employee lifecycle and role-assignment RPCs should be auditable, but this
+handbook does not claim complete audit coverage unless the server function body
+or verified backend behavior is available.
 
-### Administration
+### Planned
 
--   Critical maintenance actions
--   Future administrative operations
+Future audit work should:
 
-------------------------------------------------------------------------
+- move important audit generation to the server for sensitive operations,
+- ensure employee and role-assignment lifecycle events are captured,
+- avoid duplicate audit systems,
+- keep audit append-only,
+- keep audit readable and useful for investigation.
 
-# What Should Not Be Audited
+## Audit Lifecycle
 
-Examples include:
-
--   Opening screens
--   Typing into text fields
--   Temporary UI state
--   Validation failures
--   Navigation events
-
-The Audit System records business events---not user interface activity.
-
-------------------------------------------------------------------------
-
-# Audit Lifecycle
-
-``` text
-Business Action
-        │
-        ▼
-Business Rule Executed
-        │
-        ▼
-Business Data Updated
-        │
-        ▼
-Audit Record Written
-        │
-        ▼
-Immutable History
+```text
+Business action
+-> Business rule executed
+-> Business state changed
+-> Audit record written
+-> Immutable history preserved
 ```
 
-------------------------------------------------------------------------
+## Audit Data Shape
 
-# Relationship to Business Entities
+The local and database designs both support audit records with business-focused
+fields such as:
 
-Audit references business entities such as Employees, Branches, Areas,
-Products and Inventory Counts.
+- action,
+- entity type,
+- entity id,
+- employee context,
+- branch context,
+- description or structured details,
+- timestamp.
 
-It stores only the information necessary to reconstruct what happened
-without duplicating operational data.
+The exact storage shape may differ while the audit module is still migrating.
 
-------------------------------------------------------------------------
+## Rejected Alternatives
 
-# Investigation Philosophy
+### Storing history inside operational tables
 
-The operational database explains the current situation.
+Rejected because it mixes current state with historical investigation.
 
-The Audit System explains how that situation came to exist.
+### Auditing every database update
 
-Together they provide a complete understanding of the business.
+Rejected because excessive low-value records hide important business events.
 
-------------------------------------------------------------------------
+### Editable audit records
 
-# Business Rules
+Rejected because audit must remain trustworthy.
 
--   Audit is append-only.
--   Audit records are immutable.
--   Audit exists for historical reconstruction.
--   Operational tables never duplicate historical information.
--   Significant business events should produce audit entries.
--   Audit should remain human-readable.
+### Multiple independent audit systems
 
-------------------------------------------------------------------------
+Rejected because the business needs one coherent historical timeline.
 
-# Design Decisions
+## Summary
 
-This architecture intentionally chooses:
+Audit is the historical memory of Yelena Inventory.
 
--   Immutable audit history.
--   Separation between operational and historical data.
--   Human-readable audit records.
--   Business-event auditing.
--   One centralized audit history.
+The permanent architecture requires immutable, business-event audit records.
 
-------------------------------------------------------------------------
-
-# Rejected Alternatives
-
-### Storing History Inside Operational Tables
-
-Rejected because it mixes current state with historical information.
-
-### Auditing Every Database Change
-
-Rejected because it produces excessive noise.
-
-### Editable Audit Records
-
-Rejected because historical records must remain trustworthy.
-
-### Multiple Audit Systems
-
-Rejected because the business should have one chronological history.
-
-------------------------------------------------------------------------
-
-# Future Considerations
-
-Future modules should integrate into the existing Audit System.
-
-Potential future enhancements include filtering, exports, investigation
-reports, digital signatures and external audit integrations.
-
-------------------------------------------------------------------------
-
-# Summary
-
-The Audit System is the historical memory of Yelena Inventory.
-
-Operational tables describe **what is true today**.
-
-The Audit System explains **how today's reality came to exist**.
-
-By keeping historical information separate from operational data, the
-architecture remains clean, maintainable, and easy to investigate.
-
-Every meaningful business event contributes to a single, immutable
-timeline that allows administrators and developers to reconstruct past
-actions with confidence.
-
-The Audit System is not part of the business workflow---it is the
-permanent historical record of that workflow.
+The current implementation is partial: local audit infrastructure exists and
+server audit storage is represented in SQL artifacts, but complete centralized
+audit coverage for all sensitive Supabase operations remains planned until
+verified.

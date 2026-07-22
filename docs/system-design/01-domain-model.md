@@ -1,296 +1,205 @@
-# Chapter 1 --- Domain Model
+# Chapter 1 - Domain Model
 
 ## Purpose
 
 This chapter defines the business domain of Yelena Inventory.
 
-It describes **what exists in the business**, independently of
-implementation details, programming language, database technology, or
-user interface.
+It describes what exists in the business independently of Flutter, Supabase,
+SQL, RPCs, authentication providers, screens, or other implementation details.
 
-The purpose of the Domain Model is to establish a stable representation
-of business reality upon which every future technical decision will be
-based.
+The implementation follows the domain. The domain is not defined by the
+implementation.
 
-This chapter is intentionally technology-agnostic.
+## Business Philosophy
 
-Flutter, Supabase, SQL tables, APIs, authentication mechanisms, and UI
-implementation are consequences of the domain---not the domain itself.
+Yelena Inventory models a real business with a small number of stable concepts.
 
-Whenever implementation becomes inconsistent with the Domain Model, the
-implementation should be reconsidered.
+Every entity exists because it represents something meaningful in the business:
 
-------------------------------------------------------------------------
+- a person employed by the business,
+- a physical branch,
+- a management area,
+- a product,
+- an inventory count event,
+- a role assignment,
+- an audit event.
 
-# Business Philosophy
+The system avoids technical entities that have no independent business meaning.
 
-Yelena Inventory models a real business.
+## Business Entities
 
-Every entity in the system exists because it represents something that
-exists in reality.
-
-For example:
-
--   A person employed by the business is represented as an Employee.
--   A physical store is represented as a Branch.
--   A management region is represented as an Area.
--   A product sold or counted by the business is represented as a
-    Product.
--   A completed counting operation is represented as an Inventory Count.
--   A historical business event is represented as an Audit Log.
-
-The system intentionally avoids introducing technical entities that have
-no independent business meaning.
-
-The goal is to keep the model intuitive, predictable, and easy to
-understand even for someone unfamiliar with the implementation.
-
-------------------------------------------------------------------------
-
-# Business Entities
-
-At its highest level, the business consists of a small number of
-permanent concepts.
-
-``` text
+```text
 Company
-│
-├── Areas
-├── Branches
-├── Employees
-├── Products
-├── Inventory Counts
-├── Role Assignments
-└── Audit Logs
+|- Areas
+|- Branches
+|- Employees
+|- Products
+|- Inventory Counts
+|- Role Assignments
+`- Audit Logs
 ```
-
-Each entity has one clearly defined responsibility.
-
-No entity exists merely to support another.
-
-No entity duplicates information owned by another.
-
-------------------------------------------------------------------------
-
-# Entity Definitions
 
 ## Company
 
 A Company represents one business organization.
 
-Yelena Inventory is intentionally designed as a **Single Tenant**
-system.
-
-Each business operates its own backend, its own database, and its own
-application instance.
-
-The system never mixes information belonging to different businesses.
-
-------------------------------------------------------------------------
+Yelena Inventory is intentionally single tenant. Each business operates its own
+backend, database, and application instance.
 
 ## Area
 
-An Area represents a management region.
+An Area represents an official management region.
 
-Areas group one or more branches for administrative purposes.
-
-Areas are optional.
-
-Small businesses may operate successfully without defining any areas.
-
-Removing areas never changes the underlying business model.
-
-------------------------------------------------------------------------
+Areas group branches for administration. Areas are optional; a small business
+may operate without defining them.
 
 ## Branch
 
 A Branch represents one physical operating location.
 
-Every operational activity performed inside the application takes place
-within the context of exactly one branch.
-
-Although users may have access to multiple branches, every action is
-always executed inside one selected **Current Branch**.
-
-This design keeps workflows predictable and prevents accidental
-cross-branch operations.
-
-------------------------------------------------------------------------
+Every operational action happens inside exactly one Current Branch. A user may
+have access to multiple branches, but operational work is always performed in
+one selected branch at a time.
 
 ## Employee
 
 An Employee represents one physical person employed by the company.
 
-Employees do **not** represent permissions.
+Employees do not represent permissions, branch membership, or responsibilities.
+Those concepts belong to Role Assignments.
 
-Employees do **not** represent responsibilities.
+Employee lifecycle states:
 
-Employees do **not** represent branch membership.
+- **Active**: the employee may receive effective access when active Role
+  Assignments allow it.
+- **Inactive**: the employee remains historically identifiable, but must not
+  retain effective application access.
+- **Reactivated**: a previously inactive employee becomes active again while
+  preserving the same employee identity.
 
-Those concepts are intentionally modeled elsewhere.
+Employee identity remains stable across activation state changes.
 
-Separating identity from responsibility keeps the Employee entity stable
-throughout the employee's lifecycle.
+## Authentication Identity
 
-------------------------------------------------------------------------
+Authentication identity is separate from the Employee business entity.
+
+An employee may exist before an authentication identity is linked. Once
+authentication succeeds and the server links the identity to the employee, the
+application can load the Current Session for that employee.
+
+Authentication does not grant permissions. Role Assignments do.
+
+## Role
+
+A Role represents a fixed responsibility type such as System Manager, Area
+Manager, Branch Manager, Store Employee, or Viewer.
+
+Roles are fixed by the product design. They are not dynamic business records
+that users create inside the application.
 
 ## Role Assignment
 
-A Role Assignment represents a business responsibility granted to an
-employee.
+A Role Assignment grants one role to one employee in one business scope.
 
-It connects:
+The scope may be:
 
--   one Employee,
--   one Role,
--   one Business Scope.
+- global,
+- area,
+- branch.
 
-Role Assignments are the single source of truth for operational
-permissions.
+Role Assignments are the single source of truth for operational permissions and
+branch membership.
 
-Every permission in the application is derived from active Role
-Assignments.
+An employee may hold several active role assignments at the same time.
 
-No alternative permission structure exists.
+## Employee Deactivation
 
-------------------------------------------------------------------------
+Employee deactivation is a soft lifecycle change, not a hard delete.
+
+Operationally, deactivation can be partial at the operation level: an operator
+may be authorized to end some assignments but not side-level or higher
+assignments. The employee becomes inactive only when no active role assignments
+remain.
+
+This preserves history and prevents unauthorized responsibility changes.
 
 ## Product
 
-A Product represents a real inventory item managed by the business.
+A Product represents a real inventory item.
 
-Products exist independently of employees, branches, or inventory
-operations.
-
-------------------------------------------------------------------------
+The approved business rule is one product equals one barcode. Barcodes are
+immutable. A product has at most one current product image.
 
 ## Inventory Count
 
-An Inventory Count represents an inventory counting event.
+An Inventory Count represents one counting event.
 
-It records operational work performed by employees.
+Inventory is event-based. The latest relevant count determines the current
+inventory view.
 
-It does **not** represent inventory ownership or the product itself.
-
-------------------------------------------------------------------------
+Inventory Counts do not represent product ownership or product identity.
 
 ## Audit Log
 
-An Audit Log represents a historical event.
+An Audit Log represents a historical business event.
 
-It documents **what happened**, **when it happened**, and **who
-performed the action**.
+Audit Logs are intended to be append-only and immutable. They explain how the
+current state came to exist; they do not become the current source of truth.
 
-Audit Logs are immutable.
+## Business Facts vs Derived Information
 
-They are never edited and never deleted.
+Stored facts include:
 
-Their purpose is investigation, accountability, and historical
-reconstruction.
+- Employees,
+- Branches,
+- Areas,
+- Products,
+- Inventory Counts,
+- Roles,
+- Role Assignments,
+- Audit Logs.
 
-------------------------------------------------------------------------
+Derived information includes:
 
-# Relationships
+- effective permissions,
+- accessible branches,
+- visible screens,
+- effective role for the Current Branch,
+- current operational capabilities.
 
-Conceptually:
+Derived information should not be persisted as a second source of truth.
 
-``` text
-Employee
-        │
-        ▼
-Role Assignment
-        │
-        ▼
-Role
-        │
-        ▼
-Business Scope
-        │
-        ├── Area
-        └── Branch
-```
+## Single Source of Truth
 
-Responsibilities may change without changing employee identity.
+| Business concept | Source of truth |
+| --- | --- |
+| Employee identity | Employee |
+| Authentication identity | Auth provider identity linked to Employee |
+| Responsibility | Role Assignment |
+| Operational permission | Effective Role Assignments |
+| Branch definition | Branch |
+| Area definition | Area |
+| Product identity | Product |
+| Inventory activity | Inventory Count |
+| Historical event | Audit Log |
 
-------------------------------------------------------------------------
-
-# Business Facts vs Derived Information
-
-The system stores facts, not derived information.
-
-Stored facts include Employees, Branches, Areas, Products and Role
-Assignments.
-
-Derived information includes permissions, accessible branches and
-operational capabilities.
-
-------------------------------------------------------------------------
-
-# Single Source of Truth
-
-  Business Concept          Source of Truth
-  ------------------------- -----------------
-  Employee identity         Employee
-  Business role             Role
-  Operational permissions   Role Assignment
-  Branch definition         Branch
-  Area definition           Area
-  Historical events         Audit Log
-
-------------------------------------------------------------------------
-
-# Domain Principles
-
--   Every entity represents a real business concept.
--   Every business fact has exactly one owner.
--   Identity and responsibility are modeled separately.
--   Derived information should not be stored.
--   Simplicity is preferred over configurability.
-
-------------------------------------------------------------------------
-
-# Design Decisions
-
--   Business-first architecture.
--   Normalized domain model.
--   Separation between identity and permissions.
--   One source of truth for every business concept.
--   Technology-independent business definitions.
-
-------------------------------------------------------------------------
-
-# Rejected Alternatives
+## Rejected Alternatives
 
 ### Permissions directly on employees
 
-Rejected because responsibilities change more frequently than employee
-identity.
+Rejected because responsibilities change more often than employee identity.
 
 ### Direct employee-to-branch membership
 
-Rejected because branch membership is derived from active Role
-Assignments.
+Rejected because branch membership is derived from effective Role Assignments.
 
 ### Technology-driven domain
 
-Rejected because implementation must follow the business, not define it.
+Rejected because implementation must follow business reality, not define it.
 
-------------------------------------------------------------------------
+## Summary
 
-# Future Considerations
+The domain model keeps identity, responsibility, operational context, and
+history separate.
 
-Future modules should integrate into this domain model rather than
-introduce parallel concepts.
-
-------------------------------------------------------------------------
-
-# Summary
-
-The Domain Model is the foundation of Yelena Inventory.
-
-It describes the business as it exists in reality.
-
-Everything else is an implementation of this model.
-
-> **The domain defines the system. The implementation follows the
-> domain.**
+This separation is the foundation of the entire Yelena Inventory architecture.
