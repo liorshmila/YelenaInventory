@@ -215,6 +215,9 @@ class AppLocalizationsHe extends AppLocalizations {
   String get branchExists => 'כבר קיים סניף בשם הזה.';
 
   @override
+  String get branchNamePreviouslyUsed => 'אי אפשר לשנות את שם הסניף לשם שהיה כבר בשימוש. אם ברצונך להשתמש בשם זה שוב, יש ליצור אותו מחדש במקום לערוך סניף קיים.';
+
+  @override
   String get branchCreated => 'הסניף נוצר.';
 
   @override
@@ -222,6 +225,9 @@ class AppLocalizationsHe extends AppLocalizations {
 
   @override
   String get branchDeleted => 'הסניף נמחק.';
+
+  @override
+  String get branchAlreadyInactive => 'הסניף כבר אינו פעיל.';
 
   @override
   String get couldNotDeleteBranch => 'לא ניתן למחוק את הסניף.';
@@ -524,16 +530,16 @@ class AppLocalizationsHe extends AppLocalizations {
   String get assignmentUpdateFailed => 'לא ניתן לעדכן את השיוך כרגע.';
 
   @override
-  String get endRole => 'בטל שיוך';
+  String get endRole => 'הסר שיוך';
 
   @override
-  String get endRoleAssignment => 'ביטול שיוך';
+  String get endRoleAssignment => 'הסר שיוך';
 
   @override
   String get endRoleAssignmentMessage => 'השיוך לא יהיה פעיל יותר. העובד לא יימחק, והמידע ההיסטורי יישאר זמין ביומני המערכת. אם זהו השיוך הפעיל האחרון של העובד, ייתכן שהוא יאבד גישה למערכת.';
 
   @override
-  String get roleEndedSuccessfully => 'השיוך בוטל.';
+  String get roleEndedSuccessfully => 'השיוך הוסר.';
 
   @override
   String get roleAssignmentAlreadyEnded => 'השיוך כבר אינו פעיל.';
@@ -545,7 +551,7 @@ class AppLocalizationsHe extends AppLocalizations {
   String get invalidEndTime => 'זמן הביטול אינו תקין.';
 
   @override
-  String get endRoleAssignmentFailed => 'לא ניתן לבטל את השיוך כרגע.';
+  String get endRoleAssignmentFailed => 'לא ניתן להסיר את השיוך כרגע.';
 
   @override
   String get currentRoles => 'תפקידים נוכחיים';
@@ -710,6 +716,9 @@ class AppLocalizationsHe extends AppLocalizations {
 
   @override
   String get settingsAuditLogSubtitle => 'סקירת פעולות חשובות באפליקציה';
+
+  @override
+  String get allBranches => 'כל הסניפים';
 
   @override
   String get roleDeveloper => 'מפתח';

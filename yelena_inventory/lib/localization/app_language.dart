@@ -140,9 +140,12 @@ class AppStrings {
   String get branchName => _localizations.branchName;
   String get branchNameRequired => _localizations.branchNameRequired;
   String get branchExists => _localizations.branchExists;
+  String get branchNamePreviouslyUsed =>
+      _localizations.branchNamePreviouslyUsed;
   String get branchCreated => _localizations.branchCreated;
   String get branchUpdated => _localizations.branchUpdated;
   String get branchDeleted => _localizations.branchDeleted;
+  String get branchAlreadyInactive => _localizations.branchAlreadyInactive;
   String get couldNotDeleteBranch => _localizations.couldNotDeleteBranch;
   String get deleteBranchTitle => _localizations.deleteBranchTitle;
   String get deleteLastBranchTitle => _localizations.deleteLastBranchTitle;
@@ -326,6 +329,7 @@ class AppStrings {
       _localizations.settingsEmployeesSubtitle;
   String get settingsAuditLogSubtitle =>
       _localizations.settingsAuditLogSubtitle;
+  String get allBranches => _localizations.allBranches;
   String get roleDeveloper => _localizations.roleDeveloper;
   String get roleSystemManager => _localizations.roleSystemManager;
   String get roleAreaManager => _localizations.roleAreaManager;

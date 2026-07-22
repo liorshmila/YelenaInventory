@@ -22,6 +22,7 @@ import '../widgets/app_list_card.dart';
 import '../widgets/app_scrollbar.dart';
 import '../widgets/app_state_views.dart';
 import '../widgets/app_text_field.dart';
+import '../widgets/current_user_header.dart';
 import '../widgets/product_image_widgets.dart';
 import '../widgets/section_title.dart';
 import 'barcode_scanner_screen.dart';
@@ -203,8 +204,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           await loadInventory();
 
           if (!mounted) return;
-
-          barcodeFocusNode.requestFocus();
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -548,8 +547,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       if (!mounted) {
         return;
       }
-
-      barcodeFocusNode.requestFocus();
     } catch (error, stackTrace) {
       debugPrint('Current branch switch failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -653,215 +650,232 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             icon: const Icon(Icons.settings_outlined),
           ),
         ],
-        child: AppScrollbar(
-          builder: (controller) {
-            return ListView(
-              controller: controller,
-              children: [
-                if (accessibleBranches.length > 1) ...[
-                  _ScanBranchSelector(
-                    currentBranchName: branch.name,
-                    branchSwitching: branchSwitching,
-                    branches: accessibleBranches,
-                    currentBranch: branch,
-                    branchTooltip: strings.switchBranch,
-                    onBranchSelected: (selectedBranch) {
-                      _switchCurrentBranch(
-                        previousBranch: branch,
-                        selectedBranch: selectedBranch,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                if (branchSwitchError != null) ...[
-                  AppErrorBanner(message: branchSwitchError!),
-                  const SizedBox(height: 12),
-                ],
-                SectionTitle(
-                  title: strings.scanProducts,
-                  subtitle: strings.employeeSubtitle(employee.name),
-                  icon: Icons.qr_code_scanner,
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  textDirection: TextDirection.ltr,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Directionality(
-                        textDirection: Directionality.of(context),
-                        child: AppTextField(
-                          controller: barcodeController,
-                          focusNode: barcodeFocusNode,
-                          label: strings.barcode,
-                          icon: Icons.document_scanner_outlined,
-                          keyboardType: TextInputType.number,
-                          errorText: barcodeErrorText,
-                        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CurrentUserHeader(selectedBranch: branch),
+            if (accessibleBranches.length > 1) ...[
+              const SizedBox(height: 12),
+              _ScanBranchSelector(
+                currentBranchName: branch.name,
+                branchSwitching: branchSwitching,
+                branches: accessibleBranches,
+                currentBranch: branch,
+                branchTooltip: strings.switchBranch,
+                onBranchSelected: (selectedBranch) {
+                  _switchCurrentBranch(
+                    previousBranch: branch,
+                    selectedBranch: selectedBranch,
+                  );
+                },
+              ),
+            ],
+            if (branchSwitchError != null) ...[
+              const SizedBox(height: 12),
+              AppErrorBanner(message: branchSwitchError!),
+            ],
+            const SizedBox(height: 14),
+            Expanded(
+              child: AppScrollbar(
+                builder: (controller) {
+                  return ListView(
+                    controller: controller,
+                    children: [
+                      SectionTitle(
+                        title: strings.scanProducts,
+                        subtitle: strings.employeeSubtitle(employee.name),
+                        icon: Icons.qr_code_scanner,
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 92,
-                      height: 48,
-                      child: FilledButton.tonal(
-                        onPressed: scanBarcode,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppTheme.success.withValues(
-                            alpha: 0.16,
-                          ),
-                          foregroundColor: AppTheme.success,
-                          minimumSize: Size.zero,
-                          padding: EdgeInsets.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: Image.asset(
-                          'assets/icons/scan_barcode.png',
-                          width: 55,
-                          height: 46,
-                          fit: BoxFit.fill,
-                          semanticLabel: strings.scanBarcode,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                AppTextField(
-                  controller: quantityController,
-                  focusNode: quantityFocusNode,
-                  label: strings.quantity,
-                  icon: Icons.add_chart_outlined,
-                  keyboardType: TextInputType.number,
-                  errorText: quantityErrorText,
-                ),
-                const SizedBox(height: 12),
-                ProductImageSection(
-                  image: currentProductImage,
-                  previewBytes: pendingProductImageBytes,
-                  barcode: barcodeController.text.trim(),
-                  repository: ref.read(inventoryRepositoryProvider),
-                  onAdd: showProductImageActions,
-                  onReplace: showProductImageActions,
-                  noImageLabel: strings.noProductImage,
-                  addImageLabel: strings.addProductImage,
-                  replaceImageLabel: strings.replaceProductImage,
-                ),
-                const SizedBox(height: 16),
-                PrimaryButton(
-                  label: strings.save,
-                  icon: Icons.save_outlined,
-                  onPressed:
-                      saving ||
-                          barcodeController.text.trim().isEmpty ||
-                          quantityController.text.trim().isEmpty
-                      ? null
-                      : saveProduct,
-                ),
-                const SizedBox(height: 18),
-                _InventoryHeader(
-                  label: strings.countedProducts(inventory.length),
-                ),
-                const SizedBox(height: 12),
-                if (inventory.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: EmptyState(
-                      icon: Icons.inventory_2_outlined,
-                      message: strings.noInventoryItems,
-                    ),
-                  )
-                else
-                  ...inventory.map(
-                    (item) => AppListCard(
-                      child: ListTile(
-                        leading: _InventoryProductImage(
-                          barcode: item.barcode,
-                          fallbackIcon: Icons.inventory_2_outlined,
-                        ),
-                        title: Text(
-                          item.barcode,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('${strings.quantity}: ${item.quantity}'),
-                              Text(_formatInventoryTimestamp(item.countedAt)),
-                            ],
-                          ),
-                        ),
-                        trailing: Wrap(
-                          spacing: 4,
-                          children: [
-                            IconButton(
-                              tooltip: strings.edit,
-                              icon: const Icon(Icons.edit_outlined),
-                              onPressed: () {
-                                _showEditInventoryDialog(item);
-                              },
-                            ),
-                            IconButton(
-                              tooltip: strings.delete,
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: AppTheme.error,
+                      const SizedBox(height: 18),
+                      Row(
+                        textDirection: TextDirection.ltr,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Directionality(
+                              textDirection: Directionality.of(context),
+                              child: AppTextField(
+                                controller: barcodeController,
+                                focusNode: barcodeFocusNode,
+                                label: strings.barcode,
+                                icon: Icons.document_scanner_outlined,
+                                keyboardType: TextInputType.number,
+                                errorText: barcodeErrorText,
                               ),
-                              onPressed: () async {
-                                final confirmed =
-                                    await _confirmDeleteInventoryRecord();
-
-                                if (confirmed != true) {
-                                  return;
-                                }
-
-                                final repo = ref.read(
-                                  inventoryRepositoryProvider,
-                                );
-                                await ref
-                                    .read(globalLoadingProvider.notifier)
-                                    .runWithLoading<void>(() async {
-                                      await repo
-                                          .deleteOperationalInventoryRecord(
-                                            item.id,
-                                          );
-                                      ref.invalidate(
-                                        operationalInventoryProvider(branch),
-                                      );
-                                      await loadInventory();
-                                      if (barcodeController.text.trim() ==
-                                          item.barcode) {
-                                        await _loadProductImageForBarcode(
-                                          item.barcode,
-                                        );
-                                      }
-                                    });
-
-                                if (!context.mounted) return;
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      strings.inventoryRecordDeleted,
-                                    ),
-                                  ),
-                                );
-                              },
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 92,
+                            height: 48,
+                            child: FilledButton.tonal(
+                              onPressed: scanBarcode,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppTheme.success.withValues(
+                                  alpha: 0.16,
+                                ),
+                                foregroundColor: AppTheme.success,
+                                minimumSize: Size.zero,
+                                padding: EdgeInsets.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              child: Image.asset(
+                                'assets/icons/scan_barcode.png',
+                                width: 55,
+                                height: 46,
+                                fit: BoxFit.fill,
+                                semanticLabel: strings.scanBarcode,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-              ],
-            );
-          },
+                      const SizedBox(height: 12),
+                      AppTextField(
+                        controller: quantityController,
+                        focusNode: quantityFocusNode,
+                        label: strings.quantity,
+                        icon: Icons.add_chart_outlined,
+                        keyboardType: TextInputType.number,
+                        errorText: quantityErrorText,
+                      ),
+                      const SizedBox(height: 12),
+                      ProductImageSection(
+                        image: currentProductImage,
+                        previewBytes: pendingProductImageBytes,
+                        barcode: barcodeController.text.trim(),
+                        repository: ref.read(inventoryRepositoryProvider),
+                        onAdd: showProductImageActions,
+                        onReplace: showProductImageActions,
+                        noImageLabel: strings.noProductImage,
+                        addImageLabel: strings.addProductImage,
+                        replaceImageLabel: strings.replaceProductImage,
+                      ),
+                      const SizedBox(height: 16),
+                      PrimaryButton(
+                        label: strings.save,
+                        icon: Icons.save_outlined,
+                        onPressed:
+                            saving ||
+                                barcodeController.text.trim().isEmpty ||
+                                quantityController.text.trim().isEmpty
+                            ? null
+                            : saveProduct,
+                      ),
+                      const SizedBox(height: 18),
+                      _InventoryHeader(
+                        label: strings.countedProducts(inventory.length),
+                      ),
+                      const SizedBox(height: 12),
+                      if (inventory.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: EmptyState(
+                            icon: Icons.inventory_2_outlined,
+                            message: strings.noInventoryItems,
+                          ),
+                        )
+                      else
+                        ...inventory.map(
+                          (item) => AppListCard(
+                            child: ListTile(
+                              leading: _InventoryProductImage(
+                                barcode: item.barcode,
+                                fallbackIcon: Icons.inventory_2_outlined,
+                              ),
+                              title: Text(
+                                item.barcode,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${strings.quantity}: ${item.quantity}',
+                                    ),
+                                    Text(
+                                      _formatInventoryTimestamp(item.countedAt),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              trailing: Wrap(
+                                spacing: 4,
+                                children: [
+                                  IconButton(
+                                    tooltip: strings.edit,
+                                    icon: const Icon(Icons.edit_outlined),
+                                    onPressed: () {
+                                      _showEditInventoryDialog(item);
+                                    },
+                                  ),
+                                  IconButton(
+                                    tooltip: strings.delete,
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      color: AppTheme.error,
+                                    ),
+                                    onPressed: () async {
+                                      final confirmed =
+                                          await _confirmDeleteInventoryRecord();
+
+                                      if (confirmed != true) {
+                                        return;
+                                      }
+
+                                      final repo = ref.read(
+                                        inventoryRepositoryProvider,
+                                      );
+                                      await ref
+                                          .read(globalLoadingProvider.notifier)
+                                          .runWithLoading<void>(() async {
+                                            await repo
+                                                .deleteOperationalInventoryRecord(
+                                                  item.id,
+                                                );
+                                            ref.invalidate(
+                                              operationalInventoryProvider(
+                                                branch,
+                                              ),
+                                            );
+                                            await loadInventory();
+                                            if (barcodeController.text.trim() ==
+                                                item.barcode) {
+                                              await _loadProductImageForBarcode(
+                                                item.barcode,
+                                              );
+                                            }
+                                          });
+
+                                      if (!context.mounted) return;
+
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            strings.inventoryRecordDeleted,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

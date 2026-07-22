@@ -2,12 +2,15 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../models/add_role_assignment_result.dart';
+import '../../../models/create_branch_result.dart';
 import '../../../models/create_employee_result.dart';
+import '../../../models/deactivate_branch_result.dart';
 import '../../../models/deactivate_employee_result.dart';
 import '../../../models/end_role_assignment_result.dart';
 import '../../../models/replace_role_assignment_result.dart';
 import '../../../models/role_assignment_model.dart';
 import '../../../models/role_model.dart';
+import '../../../models/update_branch_result.dart';
 
 class RemoteBranch {
   final String id;
@@ -159,11 +162,15 @@ class RemoteInventoryCount {
 abstract interface class InventoryRemoteDataSource {
   Future<List<RemoteBranch>> getActiveBranches();
 
-  Future<RemoteBranch> createBranch({required String name});
+  Future<CreateBranchResult> createBranch({required String name});
 
-  Future<RemoteBranch> updateBranch({required String id, required String name});
+  Future<UpdateBranchResult> updateBranch({
+    required String id,
+    required String name,
+    String? areaId,
+  });
 
-  Future<void> deactivateBranch(String id);
+  Future<DeactivateBranchResult> deactivateBranch(String id);
 
   Future<List<RemoteEmployee>> getEmployeesForBranch({
     required String branchId,
@@ -331,83 +338,39 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
   }
 
   @override
-  Future<RemoteBranch> createBranch({required String name}) async {
-    const maxAttempts = 3;
+  Future<CreateBranchResult> createBranch({required String name}) async {
     final branchName = name.trim();
-    final normalizedName = _normalizeBranchName(branchName);
-    final existingBranch = await _findBranchByNormalizedName(normalizedName);
 
-    if (existingBranch != null) {
-      if (existingBranch.isActive) {
-        throw StateError('Branch name already exists.');
-      }
+    final result = await _client.rpc(
+      'create_branch',
+      params: {'p_name': branchName},
+    );
 
-      return _reactivateBranch(existingBranch.id);
-    }
-
-    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
-      final branchCode = _nextBranchCode(await _fetchBranchCodes());
-
-      try {
-        final row = await _client
-            .from('branches')
-            .insert({'name': branchName, 'branch_code': branchCode})
-            .select('id, branch_code, name')
-            .single();
-
-        return RemoteBranch.fromJson(row);
-      } on PostgrestException catch (error) {
-        if (_isBranchNameUniqueConflict(error)) {
-          final conflictingBranch = await _findBranchByNormalizedName(
-            normalizedName,
-          );
-
-          if (conflictingBranch != null && !conflictingBranch.isActive) {
-            return _reactivateBranch(conflictingBranch.id);
-          }
-
-          throw StateError('Branch name already exists.');
-        }
-
-        final shouldRetry =
-            attempt < maxAttempts && _isBranchCodeUniqueConflict(error);
-
-        if (!shouldRetry) {
-          if (_isBranchCodeUniqueConflict(error)) {
-            throw StateError('Could not create a unique branch code.');
-          }
-
-          rethrow;
-        }
-      }
-    }
-
-    throw StateError('Could not create a unique branch code.');
+    return CreateBranchResult.parse(result as String);
   }
 
   @override
-  Future<RemoteBranch> updateBranch({
+  Future<UpdateBranchResult> updateBranch({
     required String id,
     required String name,
+    String? areaId,
   }) async {
-    final row = await _client
-        .from('branches')
-        .update({'name': name.trim()})
-        .eq('id', id)
-        .select('id, branch_code, name')
-        .single();
+    final result = await _client.rpc(
+      'update_branch',
+      params: {'p_branch_id': id, 'p_name': name.trim(), 'p_area_id': areaId},
+    );
 
-    return RemoteBranch.fromJson(row);
+    return UpdateBranchResult.parse(result as String);
   }
 
   @override
-  Future<void> deactivateBranch(String id) async {
-    await _client
-        .from('branches')
-        .update({'is_active': false})
-        .eq('id', id)
-        .select('id')
-        .single();
+  Future<DeactivateBranchResult> deactivateBranch(String id) async {
+    final result = await _client.rpc(
+      'deactivate_branch',
+      params: {'p_branch_id': id},
+    );
+
+    return DeactivateBranchResult.parse(result as String);
   }
 
   @override
@@ -1054,76 +1017,6 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
     return rows.isNotEmpty;
   }
 
-  Future<List<String>> _fetchBranchCodes() async {
-    final rows = await _client.from('branches').select('branch_code');
-
-    return rows
-        .map((row) => row['branch_code'])
-        .whereType<String>()
-        .toList(growable: false);
-  }
-
-  Future<RemoteBranch?> _findBranchByNormalizedName(
-    String normalizedName,
-  ) async {
-    final rows = await _client
-        .from('branches')
-        .select('id, branch_code, name, is_active');
-
-    for (final row in rows) {
-      final branch = RemoteBranch.fromJson(row);
-
-      if (_normalizeBranchName(branch.name) == normalizedName) {
-        return branch;
-      }
-    }
-
-    return null;
-  }
-
-  Future<RemoteBranch> _reactivateBranch(String id) async {
-    final row = await _client
-        .from('branches')
-        .update({'is_active': true})
-        .eq('id', id)
-        .select('id, branch_code, name, is_active')
-        .single();
-
-    return RemoteBranch.fromJson(row);
-  }
-
-  String _nextBranchCode(List<String> existingCodes) {
-    final pattern = RegExp(r'^BR-(\d+)$');
-    var highest = 0;
-
-    for (final code in existingCodes) {
-      final match = pattern.firstMatch(code.trim());
-
-      if (match == null) {
-        continue;
-      }
-
-      final suffix = int.tryParse(match.group(1)!);
-
-      if (suffix != null && suffix > highest) {
-        highest = suffix;
-      }
-    }
-
-    final next = highest + 1;
-    final padded = next.toString().padLeft(4, '0');
-
-    return 'BR-$padded';
-  }
-
-  bool _isBranchCodeUniqueConflict(PostgrestException error) {
-    return _isUniqueConflictForColumn(error, 'branch_code');
-  }
-
-  bool _isBranchNameUniqueConflict(PostgrestException error) {
-    return _isUniqueConflictForColumn(error, 'name');
-  }
-
   bool isProductBarcodeUniqueConflict(PostgrestException error) {
     return _isUniqueConflictForColumn(error, 'barcode');
   }
@@ -1141,10 +1034,6 @@ class SupabaseInventoryRemoteDataSource implements InventoryRemoteDataSource {
     ].join(' ').toLowerCase();
 
     return text.contains(columnName.toLowerCase());
-  }
-
-  String _normalizeBranchName(String name) {
-    return name.trim().toLowerCase();
   }
 
   String _productImagePath(String productId) {

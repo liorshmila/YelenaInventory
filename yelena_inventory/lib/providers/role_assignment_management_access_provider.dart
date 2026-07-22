@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/current_session_model.dart';
 import '../models/role_assignment_management_access.dart';
 import '../models/role_model.dart';
+import 'branch_provider.dart';
 import 'current_session_provider.dart';
 import 'repository_provider.dart';
 
@@ -17,6 +18,7 @@ final roleAssignmentManagementAccessProvider =
 
       final assignments = session.activeRoleAssignments;
       final repository = ref.watch(inventoryRepositoryProvider);
+      final activeBranches = await ref.watch(branchesProvider.future);
 
       if (assignments.any(
         (assignment) => assignment.role.role == RoleCode.developer,
@@ -24,7 +26,7 @@ final roleAssignmentManagementAccessProvider =
         return roleAssignmentManagementAccessForDeveloper(
           actor: actor,
           areas: await repository.getActiveAreas(),
-          branches: await repository.getBranches(),
+          branches: activeBranches,
         );
       }
 
@@ -34,7 +36,7 @@ final roleAssignmentManagementAccessProvider =
         return roleAssignmentManagementAccessForSystemManager(
           actor: actor,
           areas: await repository.getActiveAreas(),
-          branches: await repository.getBranches(),
+          branches: activeBranches,
         );
       }
 
@@ -50,9 +52,12 @@ final roleAssignmentManagementAccessProvider =
         final allowedAreas = allAreas
             .where((area) => areaIds.contains(area.id))
             .toList(growable: false);
-        final allowedBranches = await repository.getActiveBranchesForAreaIds(
-          areaIds,
-        );
+        final allowedBranches = activeBranches
+            .where((branch) {
+              final areaId = branch.areaId?.trim();
+              return areaId != null && areaIds.contains(areaId);
+            })
+            .toList(growable: false);
 
         return roleAssignmentManagementAccessForAreaManager(
           actor: actor,

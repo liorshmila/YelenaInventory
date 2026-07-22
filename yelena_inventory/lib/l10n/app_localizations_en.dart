@@ -215,6 +215,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get branchExists => 'A branch with this name already exists.';
 
   @override
+  String get branchNamePreviouslyUsed => 'This branch name cannot be used for editing because it has already been used before. To use this name again, create it again instead of editing an existing branch.';
+
+  @override
   String get branchCreated => 'Branch created.';
 
   @override
@@ -222,6 +225,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get branchDeleted => 'Branch deleted.';
+
+  @override
+  String get branchAlreadyInactive => 'This branch is already inactive.';
 
   @override
   String get couldNotDeleteBranch => 'Could not delete this branch.';
@@ -524,16 +530,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assignmentUpdateFailed => 'Could not update the assignment right now.';
 
   @override
-  String get endRole => 'Cancel Assignment';
+  String get endRole => 'Remove assignment';
 
   @override
-  String get endRoleAssignment => 'Cancel Assignment';
+  String get endRoleAssignment => 'Remove assignment';
 
   @override
   String get endRoleAssignmentMessage => 'This assignment will no longer be active. The employee will not be deleted, and historical information remains available in system logs. If this is the employee\'s final active assignment, they may lose access to the app.';
 
   @override
-  String get roleEndedSuccessfully => 'Assignment canceled.';
+  String get roleEndedSuccessfully => 'Assignment removed.';
 
   @override
   String get roleAssignmentAlreadyEnded => 'This assignment is already inactive.';
@@ -545,7 +551,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get invalidEndTime => 'The cancellation time is invalid.';
 
   @override
-  String get endRoleAssignmentFailed => 'Could not cancel the assignment right now.';
+  String get endRoleAssignmentFailed => 'Could not remove the assignment right now.';
 
   @override
   String get currentRoles => 'Current Roles';
@@ -710,6 +716,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsAuditLogSubtitle => 'Review important app activity';
+
+  @override
+  String get allBranches => 'All Branches';
 
   @override
   String get roleDeveloper => 'Developer';

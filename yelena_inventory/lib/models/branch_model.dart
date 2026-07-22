@@ -3,12 +3,14 @@ class BranchModel {
   final int id;
   final String? remoteId;
   final String? branchCode;
+  final String? areaId;
   final String name;
 
   const BranchModel({
     required this.id,
     this.remoteId,
     this.branchCode,
+    this.areaId,
     required this.name,
   });
 
@@ -17,6 +19,7 @@ class BranchModel {
       id: json['id'] as int,
       remoteId: json['remote_id'] as String?,
       branchCode: json['branch_code'] as String?,
+      areaId: json['area_id'] as String?,
       name: json['name'] as String,
     );
   }
@@ -26,6 +29,7 @@ class BranchModel {
       'id': id,
       'remote_id': remoteId,
       'branch_code': branchCode,
+      'area_id': areaId,
       'name': name,
     };
   }
@@ -34,12 +38,14 @@ class BranchModel {
     int? id,
     String? remoteId,
     String? branchCode,
+    String? areaId,
     String? name,
   }) {
     return BranchModel(
       id: id ?? this.id,
       remoteId: remoteId ?? this.remoteId,
       branchCode: branchCode ?? this.branchCode,
+      areaId: areaId ?? this.areaId,
       name: name ?? this.name,
     );
   }

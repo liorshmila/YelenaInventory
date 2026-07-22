@@ -215,6 +215,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get branchExists => 'Филиал с таким названием уже существует.';
 
   @override
+  String get branchNamePreviouslyUsed => 'Нельзя изменить название филиала на название, которое уже использовалось ранее. Чтобы снова использовать это название, создайте филиал заново вместо редактирования существующего филиала.';
+
+  @override
   String get branchCreated => 'Филиал создан.';
 
   @override
@@ -222,6 +225,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get branchDeleted => 'Филиал удален.';
+
+  @override
+  String get branchAlreadyInactive => 'Этот филиал уже неактивен.';
 
   @override
   String get couldNotDeleteBranch => 'Не удалось удалить этот филиал.';
@@ -524,16 +530,16 @@ class AppLocalizationsRu extends AppLocalizations {
   String get assignmentUpdateFailed => 'Не удалось обновить назначение сейчас.';
 
   @override
-  String get endRole => 'Отменить назначение';
+  String get endRole => 'Удалить назначение';
 
   @override
-  String get endRoleAssignment => 'Отменить назначение';
+  String get endRoleAssignment => 'Удалить назначение';
 
   @override
   String get endRoleAssignmentMessage => 'Это назначение больше не будет активным. Сотрудник не будет удален, а историческая информация останется доступной в системных журналах. Если это последнее активное назначение сотрудника, он может потерять доступ к приложению.';
 
   @override
-  String get roleEndedSuccessfully => 'Назначение отменено.';
+  String get roleEndedSuccessfully => 'Назначение удалено.';
 
   @override
   String get roleAssignmentAlreadyEnded => 'Это назначение уже неактивно.';
@@ -545,7 +551,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get invalidEndTime => 'Время отмены недействительно.';
 
   @override
-  String get endRoleAssignmentFailed => 'Не удалось отменить назначение сейчас.';
+  String get endRoleAssignmentFailed => 'Не удалось удалить назначение сейчас.';
 
   @override
   String get currentRoles => 'Текущие роли';
@@ -710,6 +716,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get settingsAuditLogSubtitle => 'Просмотр важной активности приложения';
+
+  @override
+  String get allBranches => 'Все филиалы';
 
   @override
   String get roleDeveloper => 'Разработчик';

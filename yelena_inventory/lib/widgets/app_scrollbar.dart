@@ -24,7 +24,10 @@ class _AppScrollbarState extends State<AppScrollbar> {
       controller: controller,
       thumbVisibility: true,
       interactive: true,
-      child: widget.builder(controller),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(end: 10),
+        child: widget.builder(controller),
+      ),
     );
   }
 }

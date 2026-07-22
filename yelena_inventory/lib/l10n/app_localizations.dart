@@ -505,6 +505,12 @@ abstract class AppLocalizations {
   /// **'A branch with this name already exists.'**
   String get branchExists;
 
+  /// No description provided for @branchNamePreviouslyUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'This branch name cannot be used for editing because it has already been used before. To use this name again, create it again instead of editing an existing branch.'**
+  String get branchNamePreviouslyUsed;
+
   /// No description provided for @branchCreated.
   ///
   /// In en, this message translates to:
@@ -522,6 +528,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Branch deleted.'**
   String get branchDeleted;
+
+  /// No description provided for @branchAlreadyInactive.
+  ///
+  /// In en, this message translates to:
+  /// **'This branch is already inactive.'**
+  String get branchAlreadyInactive;
 
   /// No description provided for @couldNotDeleteBranch.
   ///
@@ -1114,13 +1126,13 @@ abstract class AppLocalizations {
   /// No description provided for @endRole.
   ///
   /// In en, this message translates to:
-  /// **'Cancel Assignment'**
+  /// **'Remove assignment'**
   String get endRole;
 
   /// No description provided for @endRoleAssignment.
   ///
   /// In en, this message translates to:
-  /// **'Cancel Assignment'**
+  /// **'Remove assignment'**
   String get endRoleAssignment;
 
   /// No description provided for @endRoleAssignmentMessage.
@@ -1132,7 +1144,7 @@ abstract class AppLocalizations {
   /// No description provided for @roleEndedSuccessfully.
   ///
   /// In en, this message translates to:
-  /// **'Assignment canceled.'**
+  /// **'Assignment removed.'**
   String get roleEndedSuccessfully;
 
   /// No description provided for @roleAssignmentAlreadyEnded.
@@ -1156,7 +1168,7 @@ abstract class AppLocalizations {
   /// No description provided for @endRoleAssignmentFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not cancel the assignment right now.'**
+  /// **'Could not remove the assignment right now.'**
   String get endRoleAssignmentFailed;
 
   /// No description provided for @currentRoles.
@@ -1482,6 +1494,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Review important app activity'**
   String get settingsAuditLogSubtitle;
+
+  /// No description provided for @allBranches.
+  ///
+  /// In en, this message translates to:
+  /// **'All Branches'**
+  String get allBranches;
 
   /// No description provided for @roleDeveloper.
   ///

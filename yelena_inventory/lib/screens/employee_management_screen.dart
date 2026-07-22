@@ -37,19 +37,51 @@ import '../widgets/app_list_card.dart';
 import '../widgets/app_scrollbar.dart';
 import '../widgets/app_state_views.dart';
 import '../widgets/app_text_field.dart';
+import '../widgets/branch_view_selector.dart';
+import '../widgets/current_user_header.dart';
 import '../widgets/section_title.dart';
 
-class EmployeeManagementScreen extends ConsumerWidget {
+class EmployeeManagementScreen extends ConsumerStatefulWidget {
   const EmployeeManagementScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EmployeeManagementScreen> createState() =>
+      _EmployeeManagementScreenState();
+}
+
+class _EmployeeManagementScreenState
+    extends ConsumerState<EmployeeManagementScreen> {
+  String? selectedBranchId;
+
+  @override
+  Widget build(BuildContext context) {
     final directoryAsync = ref.watch(employeeDirectoryProvider);
     final creationAccessAsync = ref.watch(employeeCreationAccessProvider);
     final assignmentAccessAsync = ref.watch(
       roleAssignmentManagementAccessProvider,
     );
+    final accessibleBranches = ref.watch(accessibleBranchesProvider);
     final strings = ref.watch(appStringsProvider);
+
+    if (assignmentAccessAsync.isLoading) {
+      return AppFrame(child: LoadingView(message: strings.loadingEmployees));
+    }
+
+    if (assignmentAccessAsync.hasError) {
+      return AppFrame(
+        child: ErrorView(
+          message: strings.couldNotLoadEmployees,
+          retryLabel: strings.retry,
+          onRetry: () {
+            ref.invalidate(roleAssignmentManagementAccessProvider);
+          },
+        ),
+      );
+    }
+
+    if (!(assignmentAccessAsync.value?.canAddRoleAssignments ?? false)) {
+      return AppFrame(child: ErrorView(message: strings.unauthorized));
+    }
 
     return AppFrame(
       child: directoryAsync.when(
@@ -64,76 +96,95 @@ class EmployeeManagementScreen extends ConsumerWidget {
         data: (entries) {
           final creationAccess = creationAccessAsync.value;
           final canCreate = creationAccess?.canCreateEmployees ?? false;
+          final selectedBranch = _selectedViewBranch(accessibleBranches);
+          final visibleEntries = _filterVisibleEntries(
+            entries: entries,
+            selectedBranch: selectedBranch,
+            accessibleBranches: accessibleBranches,
+          );
 
           return Stack(
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SectionTitle(
-                    title: strings.companyEmployees,
-                    subtitle: strings.companyEmployeesSubtitle,
-                    icon: Icons.people_outline,
-                  ),
-                  const SizedBox(height: 18),
+                  CurrentUserHeader(selectedBranch: selectedBranch),
+                  if (accessibleBranches.length > 1) ...[
+                    const SizedBox(height: 12),
+                    BranchViewSelector(
+                      branches: accessibleBranches,
+                      selectedBranch: selectedBranch,
+                      allowAllBranches: true,
+                      allBranchesLabel: strings.allBranches,
+                      tooltip: strings.switchBranch,
+                      onSelected: (branch) {
+                        setState(() {
+                          selectedBranchId = branch?.remoteId;
+                        });
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 14),
                   Expanded(
-                    child: entries.isEmpty
-                        ? EmptyState(
-                            icon: Icons.people_outline,
-                            message: strings.noCompanyEmployees,
-                          )
-                        : AppScrollbar(
-                            builder: (controller) {
-                              return ListView.builder(
-                                controller: controller,
-                                padding: EdgeInsets.only(
-                                  bottom: canCreate ? 86 : 0,
+                    child: AppScrollbar(
+                      builder: (controller) {
+                        return ListView(
+                          controller: controller,
+                          padding: EdgeInsets.only(bottom: canCreate ? 86 : 0),
+                          children: [
+                            SectionTitle(
+                              title: strings.companyEmployees,
+                              subtitle: strings.companyEmployeesSubtitle,
+                              icon: Icons.people_outline,
+                            ),
+                            const SizedBox(height: 18),
+                            if (visibleEntries.isEmpty)
+                              EmptyState(
+                                icon: Icons.people_outline,
+                                message: strings.noCompanyEmployees,
+                              )
+                            else
+                              for (final entry in visibleEntries)
+                                _EmployeeDirectoryTile(
+                                  entry: entry,
+                                  strings: strings,
+                                  canEdit:
+                                      assignmentAccessAsync.value
+                                          ?.canManageTarget(entry) ??
+                                      false,
+                                  canDelete:
+                                      assignmentAccessAsync.value
+                                          ?.canManageTarget(entry) ??
+                                      false,
+                                  onEdit: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) =>
+                                            _EmployeeEditScreen(entry: entry),
+                                      ),
+                                    );
+                                  },
+                                  onManageAssignments: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => _EmployeeDetailsScreen(
+                                          entry: entry,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  onDelete: () {
+                                    _confirmDeactivateEmployee(
+                                      context: context,
+                                      ref: ref,
+                                      entry: entry,
+                                    );
+                                  },
                                 ),
-                                itemCount: entries.length,
-                                itemBuilder: (context, index) {
-                                  final entry = entries[index];
-
-                                  return _EmployeeDirectoryTile(
-                                    entry: entry,
-                                    strings: strings,
-                                    canEdit:
-                                        assignmentAccessAsync.value
-                                            ?.canManageTarget(entry) ??
-                                        false,
-                                    canDelete:
-                                        assignmentAccessAsync.value
-                                            ?.canManageTarget(entry) ??
-                                        false,
-                                    onEdit: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute<void>(
-                                          builder: (_) =>
-                                              _EmployeeEditScreen(entry: entry),
-                                        ),
-                                      );
-                                    },
-                                    onManageAssignments: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute<void>(
-                                          builder: (_) =>
-                                              _EmployeeDetailsScreen(
-                                                entry: entry,
-                                              ),
-                                        ),
-                                      );
-                                    },
-                                    onDelete: () {
-                                      _confirmDeactivateEmployee(
-                                        context: context,
-                                        ref: ref,
-                                        entry: entry,
-                                      );
-                                    },
-                                  );
-                                },
-                              );
-                            },
-                          ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -156,6 +207,65 @@ class EmployeeManagementScreen extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+
+  BranchModel? _selectedViewBranch(List<BranchModel> branches) {
+    if (branches.isEmpty) {
+      return null;
+    }
+
+    if (branches.length > 1 && selectedBranchId == null) {
+      return null;
+    }
+
+    final selectedId = selectedBranchId;
+    if (selectedId != null) {
+      for (final branch in branches) {
+        if (branch.remoteId == selectedId) {
+          return branch;
+        }
+      }
+    }
+
+    return branches.length == 1 ? branches.first : null;
+  }
+
+  List<EmployeeDirectoryEntryModel> _filterVisibleEntries({
+    required List<EmployeeDirectoryEntryModel> entries,
+    required BranchModel? selectedBranch,
+    required List<BranchModel> accessibleBranches,
+  }) {
+    final selectedBranchId = selectedBranch?.remoteId;
+    if (selectedBranchId != null) {
+      return entries
+          .where((entry) => _entryHasBranch(entry, selectedBranchId))
+          .toList(growable: false);
+    }
+
+    final accessibleBranchIds = accessibleBranches
+        .map((branch) => branch.remoteId)
+        .whereType<String>()
+        .toSet();
+
+    if (accessibleBranchIds.isEmpty) {
+      return const [];
+    }
+
+    return entries
+        .where(
+          (entry) => entry.accessibleBranches.any(
+            (branch) =>
+                branch.remoteId != null &&
+                accessibleBranchIds.contains(branch.remoteId),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  bool _entryHasBranch(EmployeeDirectoryEntryModel entry, String branchId) {
+    return entry.accessibleBranches.any(
+      (branch) => branch.remoteId == branchId,
     );
   }
 }
@@ -184,13 +294,22 @@ Future<void> _showAddRoleAssignmentDialog({
   required BuildContext context,
   required WidgetRef ref,
   required EmployeeDirectoryEntryModel target,
-  required RoleAssignmentManagementAccess access,
 }) async {
   final strings = ref.read(appStringsProvider);
+  final freshAccess = await _loadFreshAssignmentAccess(
+    context: context,
+    ref: ref,
+  );
+
+  if (freshAccess == null || !context.mounted) {
+    return;
+  }
+
   final outcome = await showDialog<_RoleAssignmentDialogOutcome>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => _AddRoleAssignmentDialog(target: target, access: access),
+    builder: (_) =>
+        _AddRoleAssignmentDialog(target: target, access: freshAccess),
   );
 
   if (outcome == _RoleAssignmentDialogOutcome.created && context.mounted) {
@@ -206,15 +325,23 @@ Future<void> _showEditRoleAssignmentDialog({
   required WidgetRef ref,
   required EmployeeDirectoryEntryModel target,
   required EmployeeRoleAssignmentDetailModel detail,
-  required RoleAssignmentManagementAccess access,
 }) async {
   final strings = ref.read(appStringsProvider);
+  final freshAccess = await _loadFreshAssignmentAccess(
+    context: context,
+    ref: ref,
+  );
+
+  if (freshAccess == null || !context.mounted) {
+    return;
+  }
+
   final outcome = await showDialog<_RoleAssignmentDialogOutcome>(
     context: context,
     barrierDismissible: false,
     builder: (_) => _AddRoleAssignmentDialog(
       target: target,
-      access: access,
+      access: freshAccess,
       editingDetail: detail,
     ),
   );
@@ -231,6 +358,32 @@ Future<void> _showEditRoleAssignmentDialog({
         context,
       ).showSnackBar(SnackBar(content: Text(strings.assignmentUpdated)));
     }
+  }
+}
+
+Future<RoleAssignmentManagementAccess?> _loadFreshAssignmentAccess({
+  required BuildContext context,
+  required WidgetRef ref,
+}) async {
+  try {
+    ref.invalidate(roleAssignmentManagementAccessProvider);
+    return await ref
+        .read(globalLoadingProvider.notifier)
+        .runWithLoading(
+          () => ref.read(roleAssignmentManagementAccessProvider.future),
+        );
+  } catch (error, stackTrace) {
+    debugPrint('Could not refresh role assignment access: $error');
+    debugPrintStack(stackTrace: stackTrace);
+
+    if (context.mounted) {
+      final strings = ref.read(appStringsProvider);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.couldNotLoadEmployees)));
+    }
+
+    return null;
   }
 }
 
@@ -2060,7 +2213,6 @@ class _EmployeeDetailsScreenState
                         context: context,
                         ref: ref,
                         target: displayEntry,
-                        access: access,
                       );
                     },
                     icon: const Icon(Icons.add_circle_outline),
@@ -2121,7 +2273,6 @@ class _EmployeeDetailsScreenState
                                         ref: ref,
                                         target: displayEntry,
                                         detail: detail,
-                                        access: access!,
                                       );
                                     }
                                   : null,
@@ -2657,6 +2808,9 @@ class _RoleAssignmentRow extends StatelessWidget {
                 ],
               ),
             ),
+          ] else if (status == RoleAssignmentStatus.effective) ...[
+            const SizedBox(height: 8),
+            _MutedText(strings.protectedRole),
           ],
         ],
       ),

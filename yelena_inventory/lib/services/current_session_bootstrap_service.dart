@@ -83,59 +83,32 @@ class CurrentSessionBootstrapService {
         return;
       }
 
-      final savedBranchCode = await _currentBranchStorage.readLastBranchCode();
-      final savedBranch = _findBranchByCode(
-        accessibleBranches,
-        savedBranchCode,
-      );
+      final currentBranch = accessibleBranches.first;
+      final branchCode = currentBranch.branchCode?.trim();
 
-      if (savedBranch != null) {
-        _sessionController.setReady(
+      if (branchCode == null || branchCode.isEmpty) {
+        debugPrint(
+          'Current session bootstrap failed: first accessible branch '
+          'is missing branch_code.',
+        );
+        _sessionController.setError(
+          errorCode: CurrentSessionErrorCode.sessionLoadFailed,
           authenticatedUserId: normalizedAuthUserId,
           employee: employee,
           activeRoleAssignments: activeRoleAssignments,
           accessibleBranches: accessibleBranches,
-          currentBranch: savedBranch,
         );
         return;
       }
 
-      if (accessibleBranches.length == 1) {
-        final currentBranch = accessibleBranches.single;
-        final branchCode = currentBranch.branchCode?.trim();
+      await _currentBranchStorage.saveLastBranchCode(branchCode);
 
-        if (branchCode == null || branchCode.isEmpty) {
-          debugPrint(
-            'Current session bootstrap failed: the only accessible branch '
-            'is missing branch_code.',
-          );
-          _sessionController.setError(
-            errorCode: CurrentSessionErrorCode.sessionLoadFailed,
-            authenticatedUserId: normalizedAuthUserId,
-            employee: employee,
-            activeRoleAssignments: activeRoleAssignments,
-            accessibleBranches: accessibleBranches,
-          );
-          return;
-        }
-
-        await _currentBranchStorage.saveLastBranchCode(branchCode);
-
-        _sessionController.setReady(
-          authenticatedUserId: normalizedAuthUserId,
-          employee: employee,
-          activeRoleAssignments: activeRoleAssignments,
-          accessibleBranches: accessibleBranches,
-          currentBranch: currentBranch,
-        );
-        return;
-      }
-
-      _sessionController.setNeedsBranchSelection(
+      _sessionController.setReady(
         authenticatedUserId: normalizedAuthUserId,
         employee: employee,
         activeRoleAssignments: activeRoleAssignments,
         accessibleBranches: accessibleBranches,
+        currentBranch: currentBranch,
       );
     } catch (error, stackTrace) {
       debugPrint('Current session bootstrap failed: $error');
@@ -149,24 +122,5 @@ class CurrentSessionBootstrapService {
         accessibleBranches: accessibleBranches,
       );
     }
-  }
-
-  BranchModel? _findBranchByCode(
-    List<BranchModel> branches,
-    String? branchCode,
-  ) {
-    final normalizedBranchCode = branchCode?.trim();
-
-    if (normalizedBranchCode == null || normalizedBranchCode.isEmpty) {
-      return null;
-    }
-
-    for (final branch in branches) {
-      if (branch.branchCode?.trim() == normalizedBranchCode) {
-        return branch;
-      }
-    }
-
-    return null;
   }
 }

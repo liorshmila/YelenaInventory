@@ -3,12 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/app_database.dart';
 import '../localization/app_language.dart';
+import '../models/branch_model.dart';
 import '../providers/audit_log_provider.dart';
+import '../providers/branch_provider.dart';
+import '../providers/current_session_provider.dart';
 import '../providers/repository_provider.dart';
 import '../widgets/app_frame.dart';
 import '../widgets/app_list_card.dart';
 import '../widgets/app_scrollbar.dart';
 import '../widgets/app_state_views.dart';
+import '../widgets/branch_view_selector.dart';
+import '../widgets/current_user_header.dart';
 import '../widgets/product_image_widgets.dart';
 import '../widgets/section_title.dart';
 
@@ -23,10 +28,13 @@ class AuditLogScreen extends ConsumerStatefulWidget {
 
 class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
   AuditLogFilter selectedFilter = AuditLogFilter.all;
+  String? selectedBranchId;
 
   @override
   Widget build(BuildContext context) {
     final logsAsync = ref.watch(auditLogsProvider);
+    final branchesAsync = ref.watch(branchesProvider);
+    final sessionBranches = ref.watch(accessibleBranchesProvider);
     final strings = ref.watch(appStringsProvider);
 
     return AppFrame(
@@ -40,58 +48,159 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
           },
         ),
         data: (logs) {
-          final filteredLogs = _filterLogs(logs);
+          return branchesAsync.when(
+            loading: () => LoadingView(message: strings.loadingBranches),
+            error: (error, stack) => ErrorView(
+              message: strings.couldNotLoadBranches,
+              retryLabel: strings.retry,
+              onRetry: () {
+                ref.invalidate(branchesProvider);
+              },
+            ),
+            data: (allBranches) {
+              final branchChoices = _currentAuthorizedBranches(
+                sessionBranches: sessionBranches,
+                allBranches: allBranches,
+              );
+              final selectedBranch = _selectedBranch(branchChoices);
+              final filteredLogs = _filterLogs(logs, selectedBranch);
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SectionTitle(
-                title: strings.auditLog,
-                subtitle: strings.auditLogSubtitle,
-                icon: Icons.history_outlined,
-              ),
-              const SizedBox(height: 16),
-              _AuditFilterChips(
-                selectedFilter: selectedFilter,
-                strings: strings,
-                onSelected: (filter) {
-                  setState(() {
-                    selectedFilter = filter;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: filteredLogs.isEmpty
-                    ? EmptyState(
-                        icon: Icons.history_outlined,
-                        message: strings.noLogsYet,
-                      )
-                    : AppScrollbar(
-                        builder: (controller) {
-                          return ListView.builder(
-                            controller: controller,
-                            itemCount: filteredLogs.length,
-                            itemBuilder: (context, index) {
-                              return _AuditLogTile(log: filteredLogs[index]);
-                            },
-                          );
-                        },
-                      ),
-              ),
-            ],
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CurrentUserHeader(selectedBranch: selectedBranch),
+                  if (branchChoices.length > 1) ...[
+                    const SizedBox(height: 12),
+                    BranchViewSelector(
+                      branches: branchChoices,
+                      selectedBranch: selectedBranch,
+                      allowAllBranches: true,
+                      allBranchesLabel: strings.allBranches,
+                      tooltip: strings.switchBranch,
+                      onSelected: (branch) {
+                        setState(() {
+                          selectedBranchId = branch?.remoteId;
+                        });
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Expanded(
+                    child: AppScrollbar(
+                      builder: (controller) {
+                        return CustomScrollView(
+                          controller: controller,
+                          slivers: [
+                            SliverToBoxAdapter(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SectionTitle(
+                                    title: strings.auditLog,
+                                    subtitle: strings.auditLogSubtitle,
+                                    icon: Icons.history_outlined,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _AuditFilterChips(
+                                    selectedFilter: selectedFilter,
+                                    strings: strings,
+                                    onSelected: (filter) {
+                                      setState(() {
+                                        selectedFilter = filter;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+                              ),
+                            ),
+                            if (filteredLogs.isEmpty)
+                              SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: EmptyState(
+                                  icon: Icons.history_outlined,
+                                  message: strings.noLogsYet,
+                                ),
+                              )
+                            else
+                              SliverList.builder(
+                                itemCount: filteredLogs.length,
+                                itemBuilder: (context, index) {
+                                  return _AuditLogTile(
+                                    log: filteredLogs[index],
+                                    strings: strings,
+                                  );
+                                },
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
     );
   }
 
-  List<AuditLog> _filterLogs(List<AuditLog> logs) {
+  List<BranchModel> _currentAuthorizedBranches({
+    required List<BranchModel> sessionBranches,
+    required List<BranchModel> allBranches,
+  }) {
+    final activeBranchesById = {
+      for (final branch in allBranches)
+        if (branch.remoteId != null) branch.remoteId!: branch,
+    };
+
+    return sessionBranches
+        .map((branch) {
+          final remoteId = branch.remoteId;
+          return remoteId == null ? null : activeBranchesById[remoteId];
+        })
+        .whereType<BranchModel>()
+        .toList(growable: false);
+  }
+
+  BranchModel? _selectedBranch(List<BranchModel> branches) {
+    if (branches.isEmpty) {
+      return null;
+    }
+
+    if (branches.length > 1 && selectedBranchId == null) {
+      return null;
+    }
+
+    final selectedId = selectedBranchId;
+    if (selectedId != null) {
+      for (final branch in branches) {
+        if (branch.remoteId == selectedId) {
+          return branch;
+        }
+      }
+    }
+
+    return branches.first;
+  }
+
+  List<AuditLog> _filterLogs(List<AuditLog> logs, BranchModel? selectedBranch) {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+    final selectedBranchName = selectedBranch?.name.trim();
 
     return logs.where((log) {
+      final matchesBranch =
+          selectedBranchName == null ||
+          selectedBranchName.isEmpty ||
+          log.branchName.trim() == selectedBranchName;
+
+      if (!matchesBranch) {
+        return false;
+      }
+
       return switch (selectedFilter) {
         AuditLogFilter.all => true,
         AuditLogFilter.today => !log.timestamp.isBefore(todayStart),
@@ -146,8 +255,9 @@ class _AuditFilterChips extends StatelessWidget {
 
 class _AuditLogTile extends StatelessWidget {
   final AuditLog log;
+  final AppStrings strings;
 
-  const _AuditLogTile({required this.log});
+  const _AuditLogTile({required this.log, required this.strings});
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +274,8 @@ class _AuditLogTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(log.description),
+              const SizedBox(height: 4),
+              Text('${strings.branch}: ${log.branchName}'),
               const SizedBox(height: 4),
               Text('${_date(log.timestamp)}  ${_time(log.timestamp)}'),
             ],

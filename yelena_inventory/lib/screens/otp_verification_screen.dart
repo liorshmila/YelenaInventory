@@ -20,11 +20,25 @@ class OtpVerificationScreen extends ConsumerStatefulWidget {
 
 class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   final otpController = TextEditingController();
+  final otpFocusNode = FocusNode();
   bool submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      otpFocusNode.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
     otpController.dispose();
+    otpFocusNode.dispose();
     super.dispose();
   }
 
@@ -65,6 +79,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
             const SizedBox(height: 24),
             AppTextField(
               controller: otpController,
+              focusNode: otpFocusNode,
               label: strings.otpCode,
               icon: Icons.password_outlined,
               keyboardType: TextInputType.number,

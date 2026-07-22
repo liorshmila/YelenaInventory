@@ -5,7 +5,6 @@ import '../localization/app_language.dart';
 import '../models/current_session_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/current_session_provider.dart';
-import '../screens/branch_selection_screen.dart';
 import '../screens/no_active_permission_screen.dart';
 import '../screens/otp_verification_screen.dart';
 import '../screens/phone_login_screen.dart';
@@ -76,7 +75,7 @@ class _AuthSessionGateState extends ConsumerState<AuthSessionGate> {
       case CurrentSessionStatus.noActivePermission:
         return const NoActivePermissionScreen();
       case CurrentSessionStatus.needsBranchSelection:
-        return const BranchSelectionScreen();
+        return const ScanScreen();
       case CurrentSessionStatus.ready:
         return const ScanScreen();
       case CurrentSessionStatus.error:

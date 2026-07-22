@@ -4,6 +4,7 @@ import '../models/branch_model.dart';
 import '../models/current_session_model.dart';
 import '../models/employee_model.dart';
 import '../models/role_assignment_model.dart';
+import '../models/role_model.dart';
 import '../services/current_branch_storage.dart';
 import '../services/current_session_bootstrap_service.dart';
 import 'repository_provider.dart';
@@ -33,6 +34,19 @@ final activeRoleAssignmentsProvider = Provider<List<RoleAssignmentModel>>((
 
 final currentSessionStatusProvider = Provider<CurrentSessionStatus>((ref) {
   return ref.watch(currentSessionProvider).status;
+});
+
+final canManageBranchesProvider = Provider<bool>((ref) {
+  final session = ref.watch(currentSessionProvider);
+
+  if (session.status != CurrentSessionStatus.ready) {
+    return false;
+  }
+
+  return session.activeRoleAssignments.any((assignment) {
+    return assignment.role.role == RoleCode.developer ||
+        assignment.role.role == RoleCode.systemManager;
+  });
 });
 
 final currentSessionBootstrapServiceProvider =

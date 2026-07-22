@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../localization/app_language.dart';
 import '../models/branch_model.dart';
+import '../models/create_branch_result.dart';
+import '../models/deactivate_branch_result.dart';
+import '../models/update_branch_result.dart';
 import '../providers/branch_provider.dart';
+import '../providers/current_session_provider.dart';
 import '../providers/global_loading_provider.dart';
 import '../providers/repository_provider.dart';
 import '../theme/app_theme.dart';
@@ -11,6 +15,7 @@ import '../widgets/app_frame.dart';
 import '../widgets/app_list_card.dart';
 import '../widgets/app_scrollbar.dart';
 import '../widgets/app_state_views.dart';
+import '../widgets/current_user_header.dart';
 import '../widgets/section_title.dart';
 
 class BranchManagementScreen extends ConsumerWidget {
@@ -20,6 +25,11 @@ class BranchManagementScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final branchesAsync = ref.watch(branchesProvider);
     final strings = ref.watch(appStringsProvider);
+    final canManageBranches = ref.watch(canManageBranchesProvider);
+
+    if (!canManageBranches) {
+      return AppFrame(child: ErrorView(message: strings.unauthorized));
+    }
 
     return AppFrame(
       child: branchesAsync.when(
@@ -36,51 +46,52 @@ class BranchManagementScreen extends ConsumerWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SectionTitle(
-                    title: strings.manageBranches,
-                    subtitle: strings.manageBranchesSubtitle,
-                    icon: Icons.business_outlined,
-                  ),
-                  const SizedBox(height: 18),
+                  const CurrentUserHeader(),
+                  const SizedBox(height: 14),
                   Expanded(
-                    child: branches.isEmpty
-                        ? EmptyState(
-                            icon: Icons.business_outlined,
-                            message: strings.noBranchesFound,
-                          )
-                        : AppScrollbar(
-                            builder: (controller) {
-                              return ListView.builder(
-                                controller: controller,
-                                padding: const EdgeInsets.only(bottom: 112),
-                                itemCount: branches.length,
-                                itemBuilder: (context, index) {
-                                  final branch = branches[index];
-
-                                  return _BranchManagementTile(
-                                    branch: branch,
-                                    editLabel: strings.edit,
-                                    deleteLabel: strings.delete,
-                                    onEdit: () {
-                                      _showBranchDialog(
-                                        context: context,
-                                        ref: ref,
-                                        branch: branch,
-                                      );
-                                    },
-                                    onDelete: () {
-                                      _confirmDeleteBranch(
-                                        context: context,
-                                        ref: ref,
-                                        branch: branch,
-                                        branchesCount: branches.length,
-                                      );
-                                    },
-                                  );
-                                },
-                              );
-                            },
-                          ),
+                    child: AppScrollbar(
+                      builder: (controller) {
+                        return ListView(
+                          controller: controller,
+                          padding: const EdgeInsets.only(bottom: 112),
+                          children: [
+                            SectionTitle(
+                              title: strings.manageBranches,
+                              subtitle: strings.manageBranchesSubtitle,
+                              icon: Icons.business_outlined,
+                            ),
+                            const SizedBox(height: 18),
+                            if (branches.isEmpty)
+                              EmptyState(
+                                icon: Icons.business_outlined,
+                                message: strings.noBranchesFound,
+                              )
+                            else
+                              for (final branch in branches)
+                                _BranchManagementTile(
+                                  branch: branch,
+                                  editLabel: strings.edit,
+                                  deleteLabel: strings.delete,
+                                  onEdit: () {
+                                    _showBranchDialog(
+                                      context: context,
+                                      ref: ref,
+                                      branch: branch,
+                                    );
+                                  },
+                                  onDelete: () {
+                                    _confirmDeleteBranch(
+                                      context: context,
+                                      ref: ref,
+                                      branch: branch,
+                                      branchesCount: branches.length,
+                                    );
+                                  },
+                                ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -109,7 +120,7 @@ class BranchManagementScreen extends ConsumerWidget {
     final formKey = GlobalKey<FormState>();
     final isEditing = branch != null;
     final strings = ref.read(appStringsProvider);
-    String? duplicateNameError;
+    String? branchError;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -118,48 +129,68 @@ class BranchManagementScreen extends ConsumerWidget {
           builder: (dialogContext, setDialogState) {
             void showDuplicateNameError() {
               setDialogState(() {
-                duplicateNameError = strings.branchExists;
+                branchError = strings.branchExists;
+              });
+            }
+
+            void showEditDuplicateNameError() {
+              setDialogState(() {
+                branchError = strings.branchNamePreviouslyUsed;
+              });
+            }
+
+            void showBranchError(String message) {
+              setDialogState(() {
+                branchError = message;
               });
             }
 
             return AlertDialog(
               title: Text(isEditing ? strings.editBranch : strings.addBranch),
-              content: Form(
-                key: formKey,
-                child: TextFormField(
-                  controller: controller,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    labelText: strings.branchName,
-                    prefixIcon: const Icon(Icons.business_outlined),
-                    errorText: duplicateNameError,
-                  ),
-                  textInputAction: TextInputAction.done,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return strings.branchNameRequired;
-                    }
-
-                    return null;
-                  },
-                  onChanged: (_) {
-                    if (duplicateNameError != null) {
-                      setDialogState(() {
-                        duplicateNameError = null;
-                      });
-                    }
-                  },
-                  onFieldSubmitted: (_) async {
-                    await _saveBranch(
-                      context: context,
-                      dialogContext: dialogContext,
-                      ref: ref,
-                      formKey: formKey,
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: TextFormField(
                       controller: controller,
-                      branch: branch,
-                      onDuplicateName: showDuplicateNameError,
-                    );
-                  },
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: strings.branchName,
+                        prefixIcon: const Icon(Icons.business_outlined),
+                        errorText: branchError,
+                        errorMaxLines: 8,
+                      ),
+                      textInputAction: TextInputAction.done,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return strings.branchNameRequired;
+                        }
+
+                        return null;
+                      },
+                      onChanged: (_) {
+                        if (branchError != null) {
+                          setDialogState(() {
+                            branchError = null;
+                          });
+                        }
+                      },
+                      onFieldSubmitted: (_) async {
+                        await _saveBranch(
+                          context: context,
+                          dialogContext: dialogContext,
+                          ref: ref,
+                          formKey: formKey,
+                          controller: controller,
+                          branch: branch,
+                          onDuplicateName: showDuplicateNameError,
+                          onEditDuplicateName: showEditDuplicateNameError,
+                          onBranchError: showBranchError,
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
               actions: [
@@ -179,6 +210,8 @@ class BranchManagementScreen extends ConsumerWidget {
                       controller: controller,
                       branch: branch,
                       onDuplicateName: showDuplicateNameError,
+                      onEditDuplicateName: showEditDuplicateNameError,
+                      onBranchError: showBranchError,
                     );
                   },
                   child: Text(strings.save),
@@ -212,6 +245,8 @@ class BranchManagementScreen extends ConsumerWidget {
     required GlobalKey<FormState> formKey,
     required TextEditingController controller,
     required VoidCallback onDuplicateName,
+    required VoidCallback onEditDuplicateName,
+    required ValueChanged<String> onBranchError,
     BranchModel? branch,
   }) async {
     if (!formKey.currentState!.validate()) {
@@ -220,35 +255,71 @@ class BranchManagementScreen extends ConsumerWidget {
 
     await ref.read(globalLoadingProvider.notifier).runWithLoading<void>(
       () async {
-        final repository = ref.read(inventoryRepositoryProvider);
-        final name = controller.text.trim();
-        final exists = await repository.branchNameExists(
-          name,
-          excludeId: branch?.id,
-        );
-
-        if (!context.mounted || !dialogContext.mounted) {
-          return;
-        }
-
-        if (exists) {
-          onDuplicateName();
-          return;
-        }
-
         try {
-          if (branch == null) {
-            await repository.addBranch(name);
-          } else {
-            await repository.updateBranch(branch: branch, name: name);
-          }
-        } on StateError catch (error) {
-          if (error.message == 'Branch name already exists.') {
-            onDuplicateName();
+          final repository = ref.read(inventoryRepositoryProvider);
+          final name = controller.text.trim();
+          final exists = await repository.branchNameExists(
+            name,
+            excludeId: branch?.id,
+          );
+
+          if (!context.mounted || !dialogContext.mounted) {
             return;
           }
 
-          rethrow;
+          if (exists) {
+            if (branch == null) {
+              onDuplicateName();
+            } else {
+              onEditDuplicateName();
+            }
+            return;
+          }
+
+          if (branch == null) {
+            final result = await repository.addBranch(name);
+            if (result != CreateBranchResult.created &&
+                result != CreateBranchResult.reactivated) {
+              final strings = ref.read(appStringsProvider);
+              onBranchError(_createBranchResultMessage(result, strings));
+              return;
+            }
+          } else {
+            final result = await repository.updateBranch(
+              branch: branch,
+              name: name,
+            );
+            if (result != UpdateBranchResult.updated &&
+                result != UpdateBranchResult.nothingChanged) {
+              final strings = ref.read(appStringsProvider);
+              onBranchError(_updateBranchResultMessage(result, strings));
+              return;
+            }
+          }
+        } on StateError catch (error) {
+          if (error.message == 'Branch name already exists.') {
+            if (branch == null) {
+              onDuplicateName();
+            } else {
+              onEditDuplicateName();
+            }
+            return;
+          }
+
+          debugPrint('Branch save failed: $error');
+          if (context.mounted && dialogContext.mounted) {
+            final strings = ref.read(appStringsProvider);
+            onBranchError(strings.authOperationFailed);
+          }
+          return;
+        } catch (error, stackTrace) {
+          debugPrint('Branch save failed: $error');
+          debugPrintStack(stackTrace: stackTrace);
+          if (context.mounted && dialogContext.mounted) {
+            final strings = ref.read(appStringsProvider);
+            onBranchError(strings.authOperationFailed);
+          }
+          return;
         }
 
         if (!context.mounted || !dialogContext.mounted) {
@@ -258,6 +329,35 @@ class BranchManagementScreen extends ConsumerWidget {
         Navigator.pop(dialogContext, true);
       },
     );
+  }
+
+  String _createBranchResultMessage(
+    CreateBranchResult result,
+    AppStrings strings,
+  ) {
+    return switch (result) {
+      CreateBranchResult.created => '',
+      CreateBranchResult.reactivated => '',
+      CreateBranchResult.duplicateName => strings.branchExists,
+      CreateBranchResult.invalidName => strings.branchNameRequired,
+      CreateBranchResult.unauthorized => strings.unauthorized,
+      CreateBranchResult.operationFailed => strings.authOperationFailed,
+    };
+  }
+
+  String _updateBranchResultMessage(
+    UpdateBranchResult result,
+    AppStrings strings,
+  ) {
+    return switch (result) {
+      UpdateBranchResult.updated => '',
+      UpdateBranchResult.nothingChanged => '',
+      UpdateBranchResult.duplicateName => strings.branchNamePreviouslyUsed,
+      UpdateBranchResult.invalidName => strings.branchNameRequired,
+      UpdateBranchResult.branchNotFound => strings.authOperationFailed,
+      UpdateBranchResult.unauthorized => strings.unauthorized,
+      UpdateBranchResult.operationFailed => strings.authOperationFailed,
+    };
   }
 
   Future<void> _confirmDeleteBranch({
@@ -320,9 +420,11 @@ class BranchManagementScreen extends ConsumerWidget {
     }
 
     try {
-      await ref
+      final result = await ref
           .read(globalLoadingProvider.notifier)
-          .runWithLoading<void>(() => repository.deleteBranch(branch));
+          .runWithLoading<DeactivateBranchResult>(
+            () => repository.deleteBranch(branch),
+          );
 
       if (!context.mounted) {
         return;
@@ -336,10 +438,15 @@ class BranchManagementScreen extends ConsumerWidget {
 
       ref.invalidate(branchesProvider);
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(strings.branchDeleted)));
-    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_deactivateBranchResultMessage(result, strings)),
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Branch deactivate failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!context.mounted) {
         return;
       }
@@ -348,6 +455,19 @@ class BranchManagementScreen extends ConsumerWidget {
         context,
       ).showSnackBar(SnackBar(content: Text(strings.couldNotDeleteBranch)));
     }
+  }
+
+  String _deactivateBranchResultMessage(
+    DeactivateBranchResult result,
+    AppStrings strings,
+  ) {
+    return switch (result) {
+      DeactivateBranchResult.deactivated => strings.branchDeleted,
+      DeactivateBranchResult.alreadyInactive => strings.branchAlreadyInactive,
+      DeactivateBranchResult.branchNotFound => strings.couldNotDeleteBranch,
+      DeactivateBranchResult.unauthorized => strings.unauthorized,
+      DeactivateBranchResult.operationFailed => strings.couldNotDeleteBranch,
+    };
   }
 }
 

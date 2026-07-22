@@ -81,14 +81,14 @@ class AppFrame extends StatelessWidget {
 
   double _topLogoWidth(double width) {
     if (width < 600) {
-      return width * 0.58;
+      return width * 0.435;
     }
 
     if (width < 1000) {
-      return width * 0.43;
+      return width * 0.3225;
     }
 
-    return 420;
+    return 315;
   }
 }
 
@@ -107,7 +107,6 @@ class _HeaderChrome extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(height: 4),
         SizedBox(
           width: double.infinity,
           child: Stack(
@@ -116,7 +115,7 @@ class _HeaderChrome extends StatelessWidget {
               Align(
                 alignment: AlignmentDirectional.center,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 1),
                   child: SizedBox(
                     width: width,
                     child: Image.asset(
@@ -129,7 +128,7 @@ class _HeaderChrome extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
       ],
     );
   }
@@ -148,7 +147,7 @@ class _Footer extends StatelessWidget {
 
     return const Column(
       mainAxisSize: MainAxisSize.min,
-      children: [SizedBox(height: 8), _PoweredBy()],
+      children: [SizedBox(height: 4), _PoweredBy()],
     );
   }
 }
@@ -193,7 +192,7 @@ class _PoweredBy extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(width: 160, child: Divider(height: 1)),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           'Developed for',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -202,7 +201,7 @@ class _PoweredBy extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 1),
         SizedBox(
           width: logoWidth,
           child: Image.asset(
@@ -210,7 +209,7 @@ class _PoweredBy extends StatelessWidget {
             fit: BoxFit.contain,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Text(
           'Yelena Inventory',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -240,13 +239,13 @@ class _PoweredBy extends StatelessWidget {
 
   double _bottomLogoWidth(double width) {
     if (width < 600) {
-      return width * 0.52;
+      return width * 0.442;
     }
 
     if (width < 1000) {
-      return width * 0.40;
+      return width * 0.34;
     }
 
-    return 285;
+    return 242;
   }
 }

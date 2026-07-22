@@ -11,8 +11,10 @@ import '../models/add_role_assignment_request.dart';
 import '../models/add_role_assignment_result.dart';
 import '../models/area_model.dart';
 import '../models/branch_model.dart';
+import '../models/create_branch_result.dart';
 import '../models/create_employee_request.dart';
 import '../models/create_employee_result.dart';
+import '../models/deactivate_branch_result.dart';
 import '../models/deactivate_employee_request.dart';
 import '../models/deactivate_employee_result.dart';
 import '../models/end_role_assignment_request.dart';
@@ -25,6 +27,7 @@ import '../models/replace_role_assignment_request.dart';
 import '../models/replace_role_assignment_result.dart';
 import '../models/role_assignment_model.dart';
 import '../models/role_model.dart';
+import '../models/update_branch_result.dart';
 import '../services/product_image_storage.dart';
 import 'audit_repository.dart';
 
@@ -774,6 +777,7 @@ class InventoryRepository {
           id: localBranch.id,
           remoteId: remoteBranch.id,
           branchCode: remoteBranch.branchCode,
+          areaId: remoteBranch.areaId,
           name: remoteBranch.name,
         ),
       );
@@ -795,9 +799,14 @@ class InventoryRepository {
     });
   }
 
-  Future<void> addBranch(String name) async {
+  Future<CreateBranchResult> addBranch(String name) async {
     final branchName = name.trim();
-    await remoteDataSource.createBranch(name: branchName);
+    final result = await remoteDataSource.createBranch(name: branchName);
+
+    if (result != CreateBranchResult.created &&
+        result != CreateBranchResult.reactivated) {
+      return result;
+    }
 
     await auditRepository.logAction(
       action: 'BranchCreated',
@@ -805,9 +814,11 @@ class InventoryRepository {
       description: 'Branch $branchName created.',
       branchName: branchName,
     );
+
+    return result;
   }
 
-  Future<void> updateBranch({
+  Future<UpdateBranchResult> updateBranch({
     required BranchModel branch,
     required String name,
   }) async {
@@ -817,7 +828,15 @@ class InventoryRepository {
     }
 
     final branchName = name.trim();
-    await remoteDataSource.updateBranch(id: remoteId, name: branchName);
+    final result = await remoteDataSource.updateBranch(
+      id: remoteId,
+      name: branchName,
+      areaId: branch.areaId,
+    );
+
+    if (result != UpdateBranchResult.updated) {
+      return result;
+    }
 
     await auditRepository.logAction(
       action: 'BranchUpdated',
@@ -825,9 +844,11 @@ class InventoryRepository {
       description: 'Branch $branchName updated.',
       branchName: branchName,
     );
+
+    return result;
   }
 
-  Future<void> deleteBranch(BranchModel branch) async {
+  Future<DeactivateBranchResult> deleteBranch(BranchModel branch) async {
     final remoteId = branch.remoteId?.trim();
     if (remoteId == null || remoteId.isEmpty) {
       throw StateError('Branch is missing its Supabase id.');
@@ -836,7 +857,11 @@ class InventoryRepository {
     final branchName = branch.name;
     final employees = await localDataSource.getEmployeesForBranch(branch.id);
 
-    await remoteDataSource.deactivateBranch(remoteId);
+    final result = await remoteDataSource.deactivateBranch(remoteId);
+
+    if (result != DeactivateBranchResult.deactivated) {
+      return result;
+    }
 
     for (final employee in employees) {
       await localDataSource.deleteEmployee(employee.id);
@@ -848,6 +873,8 @@ class InventoryRepository {
       description: 'Branch $branchName deleted.',
       branchName: branchName,
     );
+
+    return result;
   }
 
   // ==========================================
